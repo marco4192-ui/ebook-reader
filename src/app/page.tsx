@@ -11,7 +11,7 @@ import {
   VolumeX, Highlighter, Clock, Target, Trophy, BarChart3,
   Tag, Download, Edit3, Globe, Award, RefreshCw, Network,
   Eye, Star, Pin, Filter, Grid, Languages, CheckCircle, Sparkles,
-  Image, ZoomIn, ZoomOut, Maximize, RotateCw, Columns, Rows,
+  Image as ImageIcon, ZoomIn, ZoomOut, Maximize, RotateCw, Columns, Rows,
   Cloud, CloudOff, QrCode, Link2, Copy, Share2, Smartphone,
   Check, AlertCircle, Palette, Zap, Vibrate, Hand, Play, Pause,
   SkipForward, SkipBack, MoonStar, MessageCircle, Brain, TrendingUp, Send, Loader2,
@@ -77,7 +77,7 @@ const FormatIcon = ({ format }: { format: Book['format'] }) => {
     case 'cbr':
     case 'cb7':
     case 'cbt':
-    case 'acv': return <Image className="w-4 h-4 text-green-500" />;
+    case 'acv': return <ImageIcon className="w-4 h-4 text-green-500" />;
     default: return <File className="w-4 h-4" />;
   }
 };

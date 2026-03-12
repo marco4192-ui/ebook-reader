@@ -20,30 +20,30 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
+// Helper functions to check state (called only on client)
+const checkIsStandalone = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+};
+
+const checkIsIOS = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && 
+    !(window as unknown as { MSStream?: boolean }).MSStream;
+};
+
+const checkIsDismissed = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  const dismissed = localStorage.getItem('pwa-install-dismissed');
+  return dismissed ? Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000 : false;
+};
+
 export function PWAInstallPrompt() {
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showPrompt, setShowPrompt] = useState(false);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
 
   useEffect(() => {
-    // Check if running as standalone PWA
-    const standalone = window.matchMedia('(display-mode: standalone)').matches ||
-      (window.navigator as unknown as { standalone?: boolean }).standalone === true;
-    setIsStandalone(standalone);
-
-    // Check for iOS
-    const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && 
-      !(window as unknown as { MSStream?: boolean }).MSStream;
-    setIsIOS(iOS);
-
-    // Check if dismissed recently (7 days)
-    const dismissed = localStorage.getItem('pwa-install-dismissed');
-    if (dismissed && Date.now() - parseInt(dismissed) < 7 * 24 * 60 * 60 * 1000) {
-      setIsDismissed(true);
-    }
-
     // Listen for install prompt
     const handleInstallable = () => {
       const deferredPrompt = (window as unknown as { deferredInstallPrompt?: BeforeInstallPromptEvent }).deferredInstallPrompt;
@@ -82,12 +82,12 @@ export function PWAInstallPrompt() {
 
   const dismissPrompt = useCallback(() => {
     setShowPrompt(false);
-    setIsDismissed(true);
     localStorage.setItem('pwa-install-dismissed', Date.now().toString());
   }, []);
 
-  // Don't show if already installed or dismissed
-  if (isStandalone || isDismissed) return null;
+  // Don't show if already installed or dismissed (client-side check)
+  if (typeof window === 'undefined') return null;
+  if (checkIsStandalone() || checkIsDismissed()) return null;
 
   return (
     <>
@@ -115,13 +115,13 @@ export function PWAInstallPrompt() {
             </DialogDescription>
           </DialogHeader>
 
-          {isIOS ? (
+          {checkIsIOS() ? (
             <div className="space-y-4 text-sm text-muted-foreground">
               <p>So installierst du die App auf iOS:</p>
               <ol className="list-decimal list-inside space-y-2">
                 <li>Tippe auf das Teilen-Symbol <span className="inline-block">⬆️</span> unten</li>
-                <li>Scrolle nach unten und tippe auf "Zum Home-Bildschirm"</li>
-                <li>Tippe auf "Hinzufügen" oben rechts</li>
+                <li>Scrolle nach unten und tippe auf &quot;Zum Home-Bildschirm&quot;</li>
+                <li>Tippe auf &quot;Hinzufügen&quot; oben rechts</li>
               </ol>
               <Button variant="outline" className="w-full" onClick={dismissPrompt}>
                 Verstanden
@@ -141,7 +141,7 @@ export function PWAInstallPrompt() {
           ) : (
             <div className="space-y-4 text-sm text-muted-foreground">
               <p>Die App kann über deinen Browser installiert werden.</p>
-              <p>Schau im Menü deines Browsers nach "App installieren" oder "Zum Startbildschirm hinzufügen".</p>
+              <p>Schau im Menü deines Browsers nach &quot;App installieren&quot; oder &quot;Zum Startbildschirm hinzufügen&quot;.</p>
               <Button variant="outline" className="w-full" onClick={dismissPrompt}>
                 Verstanden
               </Button>

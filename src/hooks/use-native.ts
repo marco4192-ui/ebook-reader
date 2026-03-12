@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { Filesystem, Directory, Encoding } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { App } from '@capacitor/app';
@@ -17,11 +17,9 @@ export const isNative = () => {
 };
 
 export function useNativeFeatures() {
-  const [native, setNative] = useState(false);
-
-  useEffect(() => {
-    setNative(isNative());
-  }, []);
+  // Use useMemo to compute native status once per render
+  // This avoids the setState in useEffect issue
+  const native = useMemo(() => isNative(), []);
 
   // Initialize native features
   useEffect(() => {
