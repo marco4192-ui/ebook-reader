@@ -1,0 +1,76 @@
+==========================================
+[2026-03-12 13:39:48] Starting: bun install
+==========================================
+[BUN] Installing dependencies...
+[0.33ms] ".env"
+bun install v1.3.10 (30e609e0)
+FileNotFound: failed copying files from cache to destination for package use-callback-ref
+FileNotFound: failed copying files from cache to destination for package use-sidecar
+FileNotFound: failed copying files from cache to destination for package c12
+FileNotFound: failed copying files from cache to destination for package unist-util-position
+FileNotFound: failed copying files from cache to destination for package @ungap/structured-clone
+FileNotFound: failed copying files from cache to destination for package d3-interpolate
+FileNotFound: failed copying files from cache to destination for package d3-shape
+FileNotFound: failed copying files from cache to destination for package @jridgewell/gen-mapping
+FileNotFound: failed copying files from cache to destination for package @jridgewell/trace-mapping
+FileNotFound: failed copying files from cache to destination for package resolve-from
+FileNotFound: failed copying files from cache to destination for package math-intrinsics
+FileNotFound: failed copying files from cache to destination for package gopd
+FileNotFound: failed copying files from cache to destination for package has-proto
+FileNotFound: failed copying files from cache to destination for package @babel/generator
+FileNotFound: failed copying files from cache to destination for package @typescript-eslint/visitor-keys
+FileNotFound: failed copying files from cache to destination for package @lezer/lr
+FileNotFound: failed copying files from cache to destination for package @lezer/css
+FileNotFound: failed copying files from cache to destination for package @lezer/html
+FileNotFound: failed copying files from cache to destination for package @lezer/cpp
+FileNotFound: failed copying files from cache to destination for package @lezer/java
+FileNotFound: failed copying files from cache to destination for package @lezer/javascript
+FileNotFound: failed copying files from cache to destination for package @lezer/json
+FileNotFound: failed copying files from cache to destination for package @lezer/php
+FileNotFound: failed copying files from cache to destination for package @lezer/python
+FileNotFound: failed copying files from cache to destination for package @lezer/rust
+FileNotFound: failed copying files from cache to destination for package @lezer/sass
+FileNotFound: failed copying files from cache to destination for package micromark-util-subtokenize
+FileNotFound: failed copying files from cache to destination for package confbox
+FileNotFound: failed copying files from cache to destination for package dom-helpers
+FileNotFound: failed copying files from cache to destination for package set-function-length
+FileNotFound: failed copying files from cache to destination for package define-data-property
+FileNotFound: failed copying files from cache to destination for package function.prototype.name
+FileNotFound: failed copying files from cache to destination for package get-symbol-description
+FileNotFound: failed copying files from cache to destination for package is-data-view
+FileNotFound: failed copying files from cache to destination for package own-keys
+FileNotFound: failed copying files from cache to destination for package stop-iteration-iterator
+FileNotFound: failed copying files from cache to destination for package typed-array-byte-length
+FileNotFound: failed copying files from cache to destination for package unbox-primitive
+FileNotFound: failed copying files from cache to destination for package dunder-proto
+FileNotFound: failed copying files from cache to destination for package functions-have-names
+FileNotFound: failed copying files from cache to destination for package side-channel-list
+FileNotFound: failed copying files from cache to destination for package side-channel-weakmap
+FileNotFound: failed copying files from cache to destination for package jsesc
+FileNotFound: failed copying files from cache to destination for package @babel/compat-data
+FileNotFound: failed copying files from cache to destination for package micromark-factory-destination
+FileNotFound: failed copying files from cache to destination for package micromark-util-html-tag-name
+FileNotFound: failed copying files from cache to destination for package node-fetch-native
+FileNotFound: failed copying files from cache to destination for package is-symbol
+FileNotFound: failed copying files from cache to destination for package which-boxed-primitive
+FileNotFound: failed copying files from cache to destination for package is-boolean-object
+FileNotFound: failed copying files from cache to destination for package is-async-function
+FileNotFound: failed copying files from cache to destination for package which-collection
+FileNotFound: failed copying files from cache to destination for package async-function
+FileNotFound: failed copying files from cache to destination for package generator-function
+FileNotFound: failed copying files from cache to destination for package is-map
+FileNotFound: failed copying files from cache to destination for package is-weakmap
+FileNotFound: failed copying files from cache to destination for package is-weakset
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-slot
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-primitive
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-context
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-primitive
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-slot
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-primitive
+FileNotFound: failed copying files from cache to destination for package debug
+FileNotFound: failed copying files from cache to destination for package semver
+FileNotFound: failed copying files from cache to destination for package @radix-ui/react-slot
+FileNotFound: failed copying files from cache to destination for package semver
+error: Failed to link semver: EEXIST
+
+error: Failed to link json5: EEXIST
