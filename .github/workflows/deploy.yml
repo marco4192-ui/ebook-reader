@@ -78,7 +78,7 @@ jobs:
         if: steps.vercel.outcome != 'success'
         run: echo "ℹ️ Vercel deployment skipped (configure secrets to enable)"
 
-  # Static build for GitHub Pages (limited - no API routes)
+  # Static build for GitHub Pages (requires removing API routes)
   deploy-pages:
     runs-on: ubuntu-latest
     needs: build
@@ -100,9 +100,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create static pages config
+      - name: Prepare static build
         run: |
-          cat > next.config.static.ts << 'EOF'
+          # Move API routes out of app directory (incompatible with static export)
+          mkdir -p .api-backup
+          mv src/app/api .api-backup/ 2>/dev/null || true
+          
+          # Create static config
+          cat > next.config.ts << 'EOF'
           import type { NextConfig } from "next";
           
           const nextConfig: NextConfig = {
@@ -119,39 +124,23 @@ jobs:
           
           export default nextConfig;
           EOF
-          cp next.config.static.ts next.config.ts
 
       - name: Build static export
-        run: npm run build
-        continue-on-error: true
+        run: npx next build
 
-      - name: Check if build succeeded
-        id: check-build
+      - name: Restore API routes
         run: |
-          if [ -d "out" ]; then
-            echo "build_success=true" >> $GITHUB_OUTPUT
-          else
-            echo "build_success=false" >> $GITHUB_OUTPUT
-            echo "::warning::Static build failed - GitHub Pages deployment skipped"
-          fi
+          mv .api-backup/api src/app/ 2>/dev/null || true
+          rm -rf .api-backup
 
       - name: Setup Pages
-        if: steps.check-build.outputs.build_success == 'true'
         uses: actions/configure-pages@v4
 
       - name: Upload artifact
-        if: steps.check-build.outputs.build_success == 'true'
         uses: actions/upload-pages-artifact@v3
         with:
           path: out/
 
       - name: Deploy to GitHub Pages
-        if: steps.check-build.outputs.build_success == 'true'
         id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Pages deployment status
-        if: steps.check-build.outputs.build_success != 'true'
-        run: |
-          echo "::notice::GitHub Pages deployment requires removing API routes for static export."
-          echo "::notice::Use Vercel deployment for full functionality with API routes."

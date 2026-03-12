@@ -41,9 +41,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create static config for mobile
+      - name: Prepare static build
         run: |
-          cat > next.config.static.ts << 'EOF'
+          # Move API routes out of app directory (incompatible with static export)
+          mkdir -p .api-backup
+          mv src/app/api .api-backup/ 2>/dev/null || true
+          
+          # Create static config
+          cat > next.config.ts << 'EOF'
           import type { NextConfig } from "next";
           
           const nextConfig: NextConfig = {
@@ -60,41 +65,33 @@ jobs:
           
           export default nextConfig;
           EOF
-          cp next.config.static.ts next.config.ts
+          
+          # Update package.json build script for static export
+          sed -i 's/next build && cp -r .next\/static .next\/standalone\/.next\/ && cp -r public .next\/standalone\//next build/' package.json
 
       - name: Build static app
         run: npm run build
-        continue-on-error: true
 
-      - name: Check build output
-        id: check
+      - name: Restore API routes
         run: |
-          if [ -d "out" ]; then
-            echo "success=true" >> $GITHUB_OUTPUT
-          else
-            echo "success=false" >> $GITHUB_OUTPUT
-            echo "::warning::Static build failed"
-          fi
+          mv .api-backup/api src/app/ 2>/dev/null || true
+          rm -rf .api-backup
 
       - name: Initialize Capacitor
-        if: steps.check.outputs.success == 'true'
         run: |
           npx cap init "eBook Reader Pro" "com.ebookreader.pro" --web-dir out || true
           npx cap add android || true
 
       - name: Sync Capacitor
-        if: steps.check.outputs.success == 'true'
         run: npx cap sync android || true
 
       - name: Build Android APK
-        if: steps.check.outputs.success == 'true'
         run: |
           cd android
           ./gradlew assembleDebug
         continue-on-error: true
 
       - name: Upload Android APK
-        if: steps.check.outputs.success == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: android-apk
@@ -119,9 +116,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Create static config for mobile
+      - name: Prepare static build
         run: |
-          cat > next.config.static.ts << 'EOF'
+          # Move API routes out of app directory (incompatible with static export)
+          mkdir -p .api-backup
+          mv src/app/api .api-backup/ 2>/dev/null || true
+          
+          # Create static config
+          cat > next.config.ts << 'EOF'
           import type { NextConfig } from "next";
           
           const nextConfig: NextConfig = {
@@ -138,40 +140,33 @@ jobs:
           
           export default nextConfig;
           EOF
-          cp next.config.static.ts next.config.ts
+          
+          # Update package.json build script for static export
+          sed -i '' 's/next build && cp -r .next\/static .next\/standalone\/.next\/ && cp -r public .next\/standalone\//next build/' package.json
 
       - name: Build static app
         run: npm run build
-        continue-on-error: true
 
-      - name: Check build output
-        id: check
+      - name: Restore API routes
         run: |
-          if [ -d "out" ]; then
-            echo "success=true" >> $GITHUB_OUTPUT
-          else
-            echo "success=false" >> $GITHUB_OUTPUT
-          fi
+          mv .api-backup/api src/app/ 2>/dev/null || true
+          rm -rf .api-backup
 
       - name: Initialize Capacitor
-        if: steps.check.outputs.success == 'true'
         run: |
           npx cap init "eBook Reader Pro" "com.ebookreader.pro" --web-dir out || true
           npx cap add ios || true
 
       - name: Sync Capacitor
-        if: steps.check.outputs.success == 'true'
         run: npx cap sync ios || true
 
       - name: Build iOS App
-        if: steps.check.outputs.success == 'true'
         run: |
           cd ios/App
           xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphoneos -archivePath build/App.xcarchive archive
         continue-on-error: true
 
       - name: Upload iOS IPA
-        if: steps.check.outputs.success == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ios-ipa
@@ -201,36 +196,33 @@ jobs:
       - name: Check artifacts
         id: check
         run: |
-          if [ -f "artifacts/android/"*.apk ]; then
+          if ls artifacts/android/*.apk 1> /dev/null 2>&1; then
             echo "has_apk=true" >> $GITHUB_OUTPUT
           else
             echo "has_apk=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
-        if: steps.check.outputs.has_apk == 'true'
         uses: softprops/action-gh-release@v1
         with:
           files: |
             artifacts/android/*.apk
           generate_release_notes: true
           draft: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create Release (no artifacts)
-        if: steps.check.outputs.has_apk != 'true'
-        uses: softprops/action-gh-release@v1
-        with:
-          generate_release_notes: true
-          draft: true
           body: |
-            ## ⚠️ Mobile build requires configuration
+            ## 📱 eBook Reader Pro Release
             
-            For mobile builds, the app needs to be configured without API routes for static export.
+            ### Installation:
+            - **Android**: Lade die APK herunter und installiere sie
+            - **PWA**: Besuche die Web-App und installiere sie über den Browser
+            - **Web**: https://github.com/marco4192-ui/ebook-reader
             
-            ### Alternative deployment options:
-            - **Web App**: Deploy to Vercel for full functionality
-            - **PWA**: Install from browser on mobile device
+            ### Features:
+            - 📚 EPUB, PDF, TXT, MD, MOBI, AZW3, FB2, DJVU Support
+            - 🎨 Comic/Manga Reader (CBZ, CBR, CB7, CBT, ACV)
+            - 🤖 KI-Zusammenfassungen & Chat
+            - 🔊 Text-to-Speech
+            - ☁️ Cloud-Sync
+            - ♿ Barrierefreiheit
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

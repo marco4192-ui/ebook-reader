@@ -25,9 +25,8 @@ jobs:
 
       - name: Lint
         run: npm run lint
-        continue-on-error: true
 
-      - name: Build
+      - name: Build (server mode)
         run: npm run build
 
       - name: Upload build artifacts
@@ -36,56 +35,3 @@ jobs:
           name: build
           path: .next/standalone/
           retention-days: 7
-
-  # Build for PWA/Static export (optional - requires removing API routes)
-  build-pwa:
-    runs-on: ubuntu-latest
-    needs: build
-    continue-on-error: true
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Create static config
-        run: |
-          cat > next.config.static.ts << 'EOF'
-          import type { NextConfig } from "next";
-          
-          const nextConfig: NextConfig = {
-            output: "export",
-            trailingSlash: true,
-            images: {
-              unoptimized: true,
-            },
-            typescript: {
-              ignoreBuildErrors: true,
-            },
-            reactStrictMode: false,
-          };
-          
-          export default nextConfig;
-          EOF
-          cp next.config.static.ts next.config.ts
-
-      - name: Build static export
-        run: npm run build
-        continue-on-error: true
-
-      - name: Check build result
-        run: |
-          if [ -d "out" ]; then
-            echo "✅ Static export successful"
-          else
-            echo "⚠️ Static export requires API routes to be removed"
-            echo "Use Vercel deployment for full functionality"
-          fi
