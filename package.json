@@ -1,6 +1,14 @@
 {
-  "name": "nextjs_tailwind_shadcn_ts",
-  "version": "0.2.0",
+  "name": "ebook-reader-pro",
+  "version": "1.0.0",
+  "description": "Comprehensive eBook Reader with AI features, TTS, cloud sync, and accessibility",
+  "author": "marco4192-ui",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/marco4192-ui/ebook-reader"
+  },
+  "homepage": "https://marco4192-ui.github.io/ebook-reader/",
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
