@@ -1,8 +1,7 @@
 import type { NextConfig } from "next";
 
+// Web config for PWA / Server deployment
 const nextConfig: NextConfig = {
-  // Use standalone for server deployment (PWA)
-  // Change to 'export' for pure static build (Capacitor)
   output: "standalone",
   typescript: {
     ignoreBuildErrors: true,

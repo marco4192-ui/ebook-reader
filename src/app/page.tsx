@@ -34,6 +34,8 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { useBookStore, type Book, type Bookmark as BookmarkType, type Highlight, type Note, type Character, type BookLocation, type TimelineEvent, type CustomTheme, type RSSFeed, type RSSArticle, type WebArticle, type SmartShelf, type BookmarkFolder, type ReadingGoal, type ReadingSpeedRecord, type ReadingHourRecord, type BookClub, type ClubMessage, type BookRecommendation, type Friend, type BookComment, type BookCommentReply, type SocialChallenge, getAllTags, calculateReadingTime } from '@/lib/book-store';
 import { toast } from 'sonner';
+import { PWAInstallPrompt } from '@/components/pwa-install';
+import { useNativeFeatures } from '@/hooks/use-native';
 
 // ============================================================================
 // UTILITY FUNCTIONS
@@ -10538,6 +10540,8 @@ export default function Page() {
           </motion.div>
         )}
       </AnimatePresence>
+      {/* PWA Install Prompt */}
+      <PWAInstallPrompt />
     </main>
   );
 }
