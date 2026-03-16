@@ -7519,6 +7519,8 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
   const [chapters, setChapters] = useState<{ label: string; href: string; readingTime?: number }[]>([]);
   const [currentChapterTime, setCurrentChapterTime] = useState<number | null>(null);
   const [totalReadingTime, setTotalReadingTime] = useState<number>(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const tts = useTTS();
 
   // Gesture navigation
@@ -7541,10 +7543,34 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
 
   useEffect(() => {
     const initEpub = async () => {
-      if (!containerRef.current) return;
-      const ePub = (await import('epubjs')).default;
+      // Wait for container to be available
+      if (!containerRef.current) {
+        // Retry after a short delay if container isn't ready
+        setTimeout(() => {
+          if (containerRef.current) {
+            initEpub();
+          } else {
+            setError('Container nicht verfügbar');
+            setLoading(false);
+          }
+        }, 100);
+        return;
+      }
+      
+      setLoading(true);
+      setError(null);
+      
+      // Set a timeout for loading (30 seconds)
+      let loadingTimedOut = false;
+      const loadingTimeout = setTimeout(() => {
+        loadingTimedOut = true;
+        setError('Zeitüberschreitung beim Laden');
+        setLoading(false);
+      }, 30000);
       
       try {
+        const ePub = (await import('epubjs')).default;
+        
         const epubBook = ePub(book.file);
         bookRef.current = epubBook;
         
@@ -7628,8 +7654,19 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
         setTotalReadingTime(totalTime);
         
         epubBook.locations.generate(1024);
-      } catch (error) {
-        toast.error('Fehler beim Laden');
+        
+        clearTimeout(loadingTimeout);
+        if (!loadingTimedOut) {
+          setLoading(false);
+        }
+      } catch (error: any) {
+        clearTimeout(loadingTimeout);
+        console.error('EPUB loading error:', error);
+        if (!loadingTimedOut) {
+          setError(error?.message || 'Fehler beim Laden des Buches');
+          toast.error('Fehler beim Laden des EPUB');
+          setLoading(false);
+        }
       }
     };
 
@@ -7702,6 +7739,30 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
           </motion.header>
         )}
       </AnimatePresence>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-20">
+          <div className="animate-spin w-12 h-12 border-4 border-primary border-t-transparent rounded-full mb-4" />
+          <p className="text-muted-foreground">Buch wird geladen...</p>
+        </div>
+      )}
+
+      {/* Error State */}
+      {error && !loading && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-background z-20 p-6">
+          <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
+          <h2 className="text-xl font-semibold mb-2">Fehler beim Laden</h2>
+          <p className="text-muted-foreground text-center mb-4">{error}</p>
+          <p className="text-xs text-muted-foreground text-center mb-4">
+            Das EPUB-Format könnte inkompatibel oder beschädigt sein.
+          </p>
+          <Button onClick={onClose}>
+            <X className="w-4 h-4 mr-2" />
+            Schließen
+          </Button>
+        </div>
+      )}
 
       <div className="flex-1 relative" onClick={() => setShowMenu(!showMenu)}>
         <div ref={containerRef} className="absolute inset-0" />
