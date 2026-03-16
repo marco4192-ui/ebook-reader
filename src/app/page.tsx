@@ -7325,102 +7325,130 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
 
       {/* Mehr-Menü als Sheet */}
       <Sheet open={showSettings} onOpenChange={setShowSettings}>
-        <SheetContent side="bottom" className="h-[70vh]">
+        <SheetContent side="bottom" className="h-[75vh]">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
               <Settings className="w-5 h-5" />
               Alle Funktionen
             </SheetTitle>
           </SheetHeader>
-          <ScrollArea className="h-[calc(100vh-120px)] mt-4">
-            <div className="grid grid-cols-3 gap-3">
-              {/* Lesen & Lernen */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAchievements(true); }}>
-                <Trophy className="w-6 h-6 text-amber-500" />
-                <span className="text-xs">Erfolge</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowKnowledgeGraph(true); }}>
-                <Network className="w-6 h-6 text-blue-500" />
-                <span className="text-xs">Wissen</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAccessibilityPro(true); }}>
-                <Eye className="w-6 h-6 text-green-500" />
-                <span className="text-xs">Barrierefreiheit</span>
-              </Button>
-              
-              {/* Export & Integration */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPDFExport(true); }}>
-                <FileDown className="w-6 h-6 text-red-500" />
-                <span className="text-xs">PDF Export</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowCalibre(true); }}>
-                <Database className="w-6 h-6 text-purple-500" />
-                <span className="text-xs">Calibre</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowOnleihe(true); }}>
-                <Book className="w-6 h-6 text-blue-600" />
-                <span className="text-xs">Onleihe</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowGoodreads(true); }}>
-                <BookOpen className="w-6 h-6 text-orange-500" />
-                <span className="text-xs">Goodreads</span>
-              </Button>
-              
-              {/* Organisation */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSmartShelves(true); }}>
-                <FolderTree className="w-6 h-6 text-cyan-500" />
-                <span className="text-xs">Regale</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowReadingLists(true); }}>
-                <List className="w-6 h-6 text-indigo-500" />
-                <span className="text-xs">Leselisten</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowGoals(true); }}>
-                <Target className="w-6 h-6 text-pink-500" />
-                <span className="text-xs">Ziele</span>
-              </Button>
-              
-              {/* Content */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowRSS(true); }}>
-                <Rss className="w-6 h-6 text-yellow-500" />
-                <span className="text-xs">RSS Feeds</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowCloudSync(true); }}>
-                <Cloud className="w-6 h-6 text-sky-500" />
-                <span className="text-xs">Cloud Sync</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPrivacy(true); }}>
-                <Shield className="w-6 h-6 text-emerald-500" />
-                <span className="text-xs">Datenschutz</span>
-              </Button>
-              
-              {/* Statistiken */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowHeatmap(true); }}>
-                <Calendar className="w-6 h-6 text-rose-500" />
-                <span className="text-xs">Heatmap</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSpeedChart(true); }}>
-                <TrendingUp className="w-6 h-6 text-teal-500" />
-                <span className="text-xs">Lesegeschw.</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSavings(true); }}>
-                <PiggyBank className="w-6 h-6 text-amber-600" />
-                <span className="text-xs">Ersparnis</span>
-              </Button>
-              
-              {/* Audio & KI */}
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAmbient(true); }}>
-                <Volume2 className="w-6 h-6 text-violet-500" />
-                <span className="text-xs">Ambient</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSpotify(true); }}>
-                <Music className="w-6 h-6 text-green-600" />
-                <span className="text-xs">Spotify</span>
-              </Button>
-              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPodcast(true); }}>
-                <Headphones className="w-6 h-6 text-fuchsia-500" />
-                <span className="text-xs">Podcast</span>
-              </Button>
+          <ScrollArea className="h-[calc(100vh-100px)] mt-4">
+            {/* Kategorie: Lesen & Lernen */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Lesen & Lernen</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowAchievements(true); }}>
+                  <Trophy className="w-5 h-5 text-amber-500" />
+                  <span className="text-[10px]">Erfolge</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowKnowledgeGraph(true); }}>
+                  <Network className="w-5 h-5 text-blue-500" />
+                  <span className="text-[10px]">Wissen</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowAccessibilityPro(true); }}>
+                  <Eye className="w-5 h-5 text-green-500" />
+                  <span className="text-[10px]">Barrierefr.</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowGoals(true); }}>
+                  <Target className="w-5 h-5 text-pink-500" />
+                  <span className="text-[10px]">Ziele</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Kategorie: Organisation */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Organisation</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowSmartShelves(true); }}>
+                  <FolderTree className="w-5 h-5 text-cyan-500" />
+                  <span className="text-[10px]">Regale</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowReadingLists(true); }}>
+                  <List className="w-5 h-5 text-indigo-500" />
+                  <span className="text-[10px]">Leselisten</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowOnleihe(true); }}>
+                  <Book className="w-5 h-5 text-blue-600" />
+                  <span className="text-[10px]">Onleihe</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowGoodreads(true); }}>
+                  <BookOpen className="w-5 h-5 text-orange-500" />
+                  <span className="text-[10px]">Goodreads</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Kategorie: Statistiken */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Statistiken</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowHeatmap(true); }}>
+                  <Calendar className="w-5 h-5 text-rose-500" />
+                  <span className="text-[10px]">Heatmap</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowSpeedChart(true); }}>
+                  <TrendingUp className="w-5 h-5 text-teal-500" />
+                  <span className="text-[10px]">Geschw.</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowSavings(true); }}>
+                  <PiggyBank className="w-5 h-5 text-amber-600" />
+                  <span className="text-[10px]">Ersparnis</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Kategorie: Audio & KI */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Audio & KI</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowAmbient(true); }}>
+                  <Volume2 className="w-5 h-5 text-violet-500" />
+                  <span className="text-[10px]">Ambient</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowSpotify(true); }}>
+                  <Music className="w-5 h-5 text-green-600" />
+                  <span className="text-[10px]">Spotify</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowPodcast(true); }}>
+                  <Headphones className="w-5 h-5 text-fuchsia-500" />
+                  <span className="text-[10px]">Podcast</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Kategorie: Import & Export */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Import & Export</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowPDFExport(true); }}>
+                  <FileDown className="w-5 h-5 text-red-500" />
+                  <span className="text-[10px]">PDF Export</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowCalibre(true); }}>
+                  <Database className="w-5 h-5 text-purple-500" />
+                  <span className="text-[10px]">Calibre</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowCloudSync(true); }}>
+                  <Cloud className="w-5 h-5 text-sky-500" />
+                  <span className="text-[10px]">Cloud</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowRSS(true); }}>
+                  <Rss className="w-5 h-5 text-yellow-500" />
+                  <span className="text-[10px]">RSS</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Kategorie: Datenschutz */}
+            <div className="mb-4">
+              <h3 className="text-sm font-medium text-muted-foreground mb-2 px-1">Datenschutz</h3>
+              <div className="grid grid-cols-4 gap-2">
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowPrivacy(true); }}>
+                  <Shield className="w-5 h-5 text-emerald-500" />
+                  <span className="text-[10px]">Privatsphäre</span>
+                </Button>
+              </div>
             </div>
           </ScrollArea>
         </SheetContent>
