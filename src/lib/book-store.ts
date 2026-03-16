@@ -920,7 +920,7 @@ const defaultSettings: ReaderSettings = {
   fontSize: 18,
   lineHeight: 1.8,
   fontFamily: 'Georgia, serif',
-  theme: 'light',
+  theme: 'sepia', // Gedeckter als rein weißes Licht
   textAlign: 'justify',
   marginSize: 'medium',
   ttsSpeed: 1,
@@ -947,10 +947,10 @@ const defaultSettings: ReaderSettings = {
   // Speed Reading (RSVP)
   speedReadingWPM: 300,
   speedReadingEnabled: false,
-  // Custom Theme Colors
-  customBackgroundColor: '#ffffff',
-  customTextColor: '#000000',
-  customAccentColor: '#f59e0b',
+  // Custom Theme Colors - Gedeckte, augenfreundliche Farben
+  customBackgroundColor: '#f5f0e6', // Warmes Creme statt reinweiß
+  customTextColor: '#2d2a26', // Weiches Schwarz statt rein schwarz
+  customAccentColor: '#8b7355', // Gedacktes Braun/Orange
 
   // === Feature 12: Erweitertes Lese-Erlebnis ===
   pageAnimation: 'slide',
@@ -968,11 +968,11 @@ const defaultSettings: ReaderSettings = {
 
   // === Feature 17: Ultimative Anpassung ===
   customFonts: [],
-  themeBackgroundColor: '#ffffff',
-  themeTextColor: '#000000',
-  themeAccentColor: '#f59e0b',
-  themeHighlightColor: '#fef08a',
-  themeBorderColor: '#e5e7eb',
+  themeBackgroundColor: '#f5f0e6', // Warmes Creme
+  themeTextColor: '#2d2a26', // Weiches Schwarz
+  themeAccentColor: '#8b7355', // Gedacktes Braun
+  themeHighlightColor: '#d4c4a8', // Gedecktes Gelb
+  themeBorderColor: '#d4c4a8', // Gedeckter Rand
   marginPreset: 'balanced',
   customMarginTop: 20,
   customMarginBottom: 20,
@@ -981,10 +981,10 @@ const defaultSettings: ReaderSettings = {
   readingMaskEnabled: false,
   readingMaskLines: 3,
   readingMaskOpacity: 80,
-  readingMaskColor: '#000000',
+  readingMaskColor: '#2d2a26',
   gradientThemeEnabled: false,
-  gradientThemeStart: '#fef3c7',
-  gradientThemeEnd: '#fde68a',
+  gradientThemeStart: '#f5f0e6',
+  gradientThemeEnd: '#e8dcc8',
   gradientThemeDirection: 'to-bottom',
 
   // === Feature 19: Accessibility Pro ===

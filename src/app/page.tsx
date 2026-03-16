@@ -2127,15 +2127,57 @@ const GutenbergPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const downloadBook = async (book: any) => {
     toast.info(`Lade "${book.title}" herunter...`);
     try {
-      const contentUrl = book.formats.html || book.formats.txt;
-      if (!contentUrl) { toast.error('Kein passendes Format verfügbar'); return; }
-      const response = await fetch(contentUrl);
-      const content = await response.text();
-      const base64 = `data:text/html;base64,${btoa(unescape(encodeURIComponent(content)))}`;
-      addBook({ title: book.title, author: book.author, format: 'txt', file: base64, fileSize: content.length, cover: book.cover });
-      toast.success(`"${book.title}" wurde hinzugefügt!`);
-    } catch {
-      toast.error('Download fehlgeschlagen');
+      // Prefer EPUB format, fallback to HTML/TXT
+      const epubUrl = book.formats?.epub;
+      const htmlUrl = book.formats?.html;
+      const txtUrl = book.formats?.txt;
+      
+      // If EPUB is available, open in new tab for download
+      if (epubUrl) {
+        window.open(epubUrl, '_blank');
+        toast.success(`"${book.title}" EPUB wird heruntergeladen. Nach dem Download öffnen Sie die Datei in der App.`);
+        return;
+      }
+      
+      // For HTML/TXT, we need to use a proxy or direct link
+      if (htmlUrl || txtUrl) {
+        const contentUrl = htmlUrl || txtUrl;
+        
+        // Try direct fetch first
+        try {
+          const response = await fetch(contentUrl, { mode: 'cors' });
+          if (response.ok) {
+            const content = await response.text();
+            // Store as a data URL
+            const base64 = btoa(unescape(encodeURIComponent(content)));
+            const dataUrl = `data:text/html;base64,${base64}`;
+            addBook({ 
+              title: book.title, 
+              author: book.author || 'Unbekannt', 
+              format: 'txt', 
+              file: dataUrl, 
+              fileSize: content.length, 
+              cover: book.cover 
+            });
+            toast.success(`"${book.title}" wurde zur Bibliothek hinzugefügt!`);
+            return;
+          }
+        } catch {
+          // CORS blocked - open in new tab instead
+          window.open(contentUrl, '_blank');
+          toast.info(`Das Buch wird in einem neuen Tab geöffnet. Kopieren Sie den Text und fügen Sie ihn als TXT-Datei hinzu.`);
+          return;
+        }
+      }
+      
+      // Fallback: Open Gutenberg page
+      window.open(`https://www.gutenberg.org/ebooks/${book.id}`, '_blank');
+      toast.info('Das Buch wird auf Gutenberg geöffnet. Laden Sie es dort herunter.');
+      
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Download fehlgeschlagen. Öffne Gutenberg-Seite...');
+      window.open(`https://www.gutenberg.org/ebooks/${book.id}`, '_blank');
     }
   };
 
@@ -7098,6 +7140,7 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
   const [showPocket, setShowPocket] = useState(false);
   const [showNotionExport, setShowNotionExport] = useState(false);
   const [showSpotify, setShowSpotify] = useState(false);
+  const [showOnleihe, setShowOnleihe] = useState(false);
 
   // Feature 20: Privatsphäre & Performance
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -7257,20 +7300,131 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
         )}
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t p-2">
-        <div className="flex justify-around">
-          <Button variant="ghost" size="sm" onClick={() => setShowStats(true)}><BarChart3 className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowAchievements(true)}><Trophy className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowGutenberg(true)}><Globe className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowKnowledgeGraph(true)}><Network className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowThemeCustomizer(true)}><Palette className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowAccessibilityPro(true)}><Eye className="w-5 h-5" /></Button>
-          {/* Feature 15, 18, 20: New Panels */}
-          <Button variant="ghost" size="sm" onClick={() => setShowPDFExport(true)} title="PDF Export"><FileDown className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowCalibre(true)} title="Calibre"><Database className="w-5 h-5" /></Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowPrivacy(true)} title="Datenschutz"><Shield className="w-5 h-5" /></Button>
+      {/* Optimiertes Bottom-Menü */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur border-t">
+        <div className="flex justify-around items-center h-14">
+          {/* Wichtigste Funktionen direkt sichtbar */}
+          <Button variant="ghost" size="sm" onClick={() => setShowStats(true)} className="flex flex-col items-center gap-0.5 h-auto py-1.5">
+            <BarChart3 className="w-5 h-5" />
+            <span className="text-[10px]">Statistik</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowGutenberg(true)} className="flex flex-col items-center gap-0.5 h-auto py-1.5">
+            <Globe className="w-5 h-5" />
+            <span className="text-[10px]">Bücher</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowThemeCustomizer(true)} className="flex flex-col items-center gap-0.5 h-auto py-1.5">
+            <Palette className="w-5 h-5" />
+            <span className="text-[10px]">Thema</span>
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setShowSettings(true)} className="flex flex-col items-center gap-0.5 h-auto py-1.5">
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px]">Mehr</span>
+          </Button>
         </div>
       </nav>
+
+      {/* Mehr-Menü als Sheet */}
+      <Sheet open={showSettings} onOpenChange={setShowSettings}>
+        <SheetContent side="bottom" className="h-[70vh]">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5" />
+              Alle Funktionen
+            </SheetTitle>
+          </SheetHeader>
+          <ScrollArea className="h-[calc(100vh-120px)] mt-4">
+            <div className="grid grid-cols-3 gap-3">
+              {/* Lesen & Lernen */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAchievements(true); }}>
+                <Trophy className="w-6 h-6 text-amber-500" />
+                <span className="text-xs">Erfolge</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowKnowledgeGraph(true); }}>
+                <Network className="w-6 h-6 text-blue-500" />
+                <span className="text-xs">Wissen</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAccessibilityPro(true); }}>
+                <Eye className="w-6 h-6 text-green-500" />
+                <span className="text-xs">Barrierefreiheit</span>
+              </Button>
+              
+              {/* Export & Integration */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPDFExport(true); }}>
+                <FileDown className="w-6 h-6 text-red-500" />
+                <span className="text-xs">PDF Export</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowCalibre(true); }}>
+                <Database className="w-6 h-6 text-purple-500" />
+                <span className="text-xs">Calibre</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowOnleihe(true); }}>
+                <Book className="w-6 h-6 text-blue-600" />
+                <span className="text-xs">Onleihe</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowGoodreads(true); }}>
+                <BookOpen className="w-6 h-6 text-orange-500" />
+                <span className="text-xs">Goodreads</span>
+              </Button>
+              
+              {/* Organisation */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSmartShelves(true); }}>
+                <FolderTree className="w-6 h-6 text-cyan-500" />
+                <span className="text-xs">Regale</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowReadingLists(true); }}>
+                <List className="w-6 h-6 text-indigo-500" />
+                <span className="text-xs">Leselisten</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowGoals(true); }}>
+                <Target className="w-6 h-6 text-pink-500" />
+                <span className="text-xs">Ziele</span>
+              </Button>
+              
+              {/* Content */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowRSS(true); }}>
+                <Rss className="w-6 h-6 text-yellow-500" />
+                <span className="text-xs">RSS Feeds</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowCloudSync(true); }}>
+                <Cloud className="w-6 h-6 text-sky-500" />
+                <span className="text-xs">Cloud Sync</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPrivacy(true); }}>
+                <Shield className="w-6 h-6 text-emerald-500" />
+                <span className="text-xs">Datenschutz</span>
+              </Button>
+              
+              {/* Statistiken */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowHeatmap(true); }}>
+                <Calendar className="w-6 h-6 text-rose-500" />
+                <span className="text-xs">Heatmap</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSpeedChart(true); }}>
+                <TrendingUp className="w-6 h-6 text-teal-500" />
+                <span className="text-xs">Lesegeschw.</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSavings(true); }}>
+                <PiggyBank className="w-6 h-6 text-amber-600" />
+                <span className="text-xs">Ersparnis</span>
+              </Button>
+              
+              {/* Audio & KI */}
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowAmbient(true); }}>
+                <Volume2 className="w-6 h-6 text-violet-500" />
+                <span className="text-xs">Ambient</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowSpotify(true); }}>
+                <Music className="w-6 h-6 text-green-600" />
+                <span className="text-xs">Spotify</span>
+              </Button>
+              <Button variant="outline" className="h-auto py-4 flex flex-col items-center gap-2" onClick={() => { setShowSettings(false); setShowPodcast(true); }}>
+                <Headphones className="w-6 h-6 text-fuchsia-500" />
+                <span className="text-xs">Podcast</span>
+              </Button>
+            </div>
+          </ScrollArea>
+        </SheetContent>
+      </Sheet>
 
       <AnimatePresence>
         {bookToDelete && (
@@ -7332,6 +7486,7 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
       <CalibreConnectPanel open={showCalibre} onOpenChange={setShowCalibre} />
       <GoodreadsPanel open={showGoodreads} onOpenChange={setShowGoodreads} />
       <PocketImportPanel open={showPocket} onOpenChange={setShowPocket} />
+      <OnleihePanel open={showOnleihe} onOpenChange={setShowOnleihe} />
       <NotionExportPanel open={showNotionExport} onOpenChange={setShowNotionExport} />
       <SpotifyPanel open={showSpotify} onOpenChange={setShowSpotify} />
 
@@ -8559,24 +8714,144 @@ const BookClubPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 const AudiobookPlayer = ({ book, onClose }: { book: Book; onClose: () => void }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(3600); // Demo: 1 hour
+  const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  const audioRef = useRef<HTMLAudioElement>(null);
+  const [volume, setVolume] = useState(1);
+  const [sleepTimer, setSleepTimer] = useState<number | null>(null);
+  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { updateBook } = useBookStore();
+
+  // Initialize audio from book file
+  useEffect(() => {
+    if (!book.file) return;
+    
+    // Check if file is an audio format
+    const isAudio = book.file.startsWith('data:audio') || 
+                    book.file.endsWith('.mp3') || 
+                    book.file.endsWith('.m4b') ||
+                    book.file.endsWith('.m4a') ||
+                    book.file.endsWith('.wav');
+    
+    if (isAudio) {
+      audioRef.current = new Audio(book.file);
+      audioRef.current.addEventListener('loadedmetadata', () => {
+        setDuration(audioRef.current?.duration || 0);
+      });
+      audioRef.current.addEventListener('timeupdate', () => {
+        setCurrentTime(audioRef.current?.currentTime || 0);
+      });
+      audioRef.current.addEventListener('ended', () => {
+        setIsPlaying(false);
+      });
+    }
+    
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, [book.file]);
+
+  // Handle play/pause
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.play().catch(() => {
+          toast.error('Audio konnte nicht abgespielt werden');
+          setIsPlaying(false);
+        });
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
+  // Handle playback rate change
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = playbackRate;
+    }
+  }, [playbackRate]);
+
+  // Handle volume change
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume;
+    }
+  }, [volume]);
+
+  // Sleep timer
+  useEffect(() => {
+    if (sleepTimeLeft === null || sleepTimeLeft <= 0) return;
+    
+    const timer = setInterval(() => {
+      setSleepTimeLeft((prev) => {
+        if (prev && prev <= 1) {
+          setIsPlaying(false);
+          return null;
+        }
+        return prev ? prev - 1 : null;
+      });
+    }, 1000);
+    
+    return () => clearInterval(timer);
+  }, [sleepTimeLeft]);
 
   const togglePlay = () => setIsPlaying(!isPlaying);
   
-  const skipForward = () => setCurrentTime(Math.min(currentTime + 30, duration));
-  const skipBackward = () => setCurrentTime(Math.max(currentTime - 15, 0));
+  const skipForward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.min(currentTime + 30, duration);
+    }
+    setCurrentTime(Math.min(currentTime + 30, duration));
+  };
+  
+  const skipBackward = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = Math.max(currentTime - 15, 0);
+    }
+    setCurrentTime(Math.max(currentTime - 15, 0));
+  };
+
+  const seekTo = (time: number) => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = time;
+    }
+    setCurrentTime(time);
+  };
+
+  const setSleep = (minutes: number) => {
+    setSleepTimeLeft(minutes * 60);
+    toast.info(`Sleep-Timer: ${minutes} Minuten`);
+  };
 
   const formatAudioTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
+    const hrs = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hrs > 0) {
+      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Demo: simulate playback
+  const saveProgress = () => {
+    updateBook(book.id, { progress: (currentTime / duration) * 100 });
+    toast.success('Fortschritt gespeichert!');
+  };
+
+  // Demo mode fallback if no audio file
   useEffect(() => {
-    if (isPlaying) {
+    if (!audioRef.current && duration === 0) {
+      setDuration(3600); // Demo: 1 hour
+    }
+  }, [duration]);
+
+  // Demo playback simulation
+  useEffect(() => {
+    if (!audioRef.current && isPlaying) {
       const timer = setInterval(() => {
         setCurrentTime(t => Math.min(t + 1, duration));
       }, 1000);
@@ -8588,12 +8863,12 @@ const AudiobookPlayer = ({ book, onClose }: { book: Book; onClose: () => void })
     <div className="fixed inset-0 z-50 bg-gradient-to-b from-background to-muted flex flex-col">
       {/* Header */}
       <header className="flex items-center justify-between p-4">
-        <Button variant="ghost" onClick={onClose}><X className="w-5 h-5" /></Button>
+        <Button variant="ghost" onClick={onClose}><ChevronLeft className="w-5 h-5" /></Button>
         <div className="text-center flex-1">
           <h2 className="font-semibold truncate">{book.title}</h2>
           {book.author && <p className="text-sm text-muted-foreground">{book.author}</p>}
         </div>
-        <Button variant="ghost" onClick={() => toast.success('Lesezeichen gesetzt!')}><Bookmark className="w-5 h-5" /></Button>
+        <Button variant="ghost" onClick={saveProgress}><Bookmark className="w-5 h-5" /></Button>
       </header>
 
       {/* Cover */}
@@ -8605,10 +8880,26 @@ const AudiobookPlayer = ({ book, onClose }: { book: Book; onClose: () => void })
         </motion.div>
       </div>
 
+      {/* Sleep Timer Display */}
+      {sleepTimeLeft !== null && (
+        <div className="text-center text-sm text-muted-foreground">
+          😴 Sleep-Timer: {formatAudioTime(sleepTimeLeft)}
+          <Button variant="ghost" size="sm" onClick={() => setSleepTimeLeft(null)} className="ml-2">
+            Abbrechen
+          </Button>
+        </div>
+      )}
+
       {/* Controls */}
-      <div className="p-8 space-y-6">
+      <div className="p-6 space-y-4">
         <div className="space-y-2">
-          <Slider value={[currentTime]} max={duration} step={1} onValueChange={([v]) => setCurrentTime(v)} className="w-full" />
+          <Slider 
+            value={[currentTime]} 
+            max={duration || 1} 
+            step={1} 
+            onValueChange={([v]) => seekTo(v)} 
+            className="w-full" 
+          />
           <div className="flex justify-between text-sm text-muted-foreground">
             <span>{formatAudioTime(currentTime)}</span>
             <span>{formatAudioTime(duration)}</span>
@@ -8616,15 +8907,59 @@ const AudiobookPlayer = ({ book, onClose }: { book: Book; onClose: () => void })
         </div>
 
         <div className="flex items-center justify-center gap-6">
-          <Button variant="ghost" size="icon" onClick={skipBackward}><SkipBack className="w-6 h-6" /></Button>
-          <Button size="lg" className="w-16 h-16 rounded-full" onClick={togglePlay}>{isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}</Button>
-          <Button variant="ghost" size="icon" onClick={skipForward}><SkipForward className="w-6 h-6" /></Button>
+          <Button variant="ghost" size="icon" onClick={skipBackward}>
+            <SkipBack className="w-6 h-6" />
+          </Button>
+          <Button size="lg" className="w-16 h-16 rounded-full" onClick={togglePlay}>
+            {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
+          </Button>
+          <Button variant="ghost" size="icon" onClick={skipForward}>
+            <SkipForward className="w-6 h-6" />
+          </Button>
         </div>
 
+        {/* Playback Speed */}
         <div className="flex items-center gap-2 justify-center">
-          <span className="text-sm text-muted-foreground">Geschwindigkeit:</span>
-          {[0.5, 1, 1.5, 2].map((rate) => (
-            <Button key={rate} variant={playbackRate === rate ? 'default' : 'outline'} size="sm" className="w-10" onClick={() => setPlaybackRate(rate)}>{rate}x</Button>
+          <span className="text-xs text-muted-foreground">Speed:</span>
+          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
+            <Button 
+              key={rate} 
+              variant={playbackRate === rate ? 'default' : 'outline'} 
+              size="sm" 
+              className="w-12 h-8 text-xs" 
+              onClick={() => setPlaybackRate(rate)}
+            >
+              {rate}x
+            </Button>
+          ))}
+        </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center gap-2 justify-center">
+          <VolumeX className="w-4 h-4 text-muted-foreground" />
+          <Slider 
+            value={[volume * 100]} 
+            max={100} 
+            step={1} 
+            onValueChange={([v]) => setVolume(v / 100)} 
+            className="w-32" 
+          />
+          <Volume2 className="w-4 h-4 text-muted-foreground" />
+        </div>
+
+        {/* Sleep Timer Buttons */}
+        <div className="flex items-center gap-2 justify-center">
+          <span className="text-xs text-muted-foreground mr-2">😴 Sleep:</span>
+          {[5, 15, 30, 60].map((mins) => (
+            <Button 
+              key={mins} 
+              variant="outline" 
+              size="sm" 
+              className="h-7 text-xs" 
+              onClick={() => setSleep(mins)}
+            >
+              {mins}min
+            </Button>
           ))}
         </div>
       </div>
@@ -9439,6 +9774,237 @@ const PocketImportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
               </div>
             </ScrollArea>
           )}
+        </div>
+      </SheetContent>
+    </Sheet>
+  );
+};
+
+// ============================================================================
+// ONLEIHE PANEL - Digitale Bibliothek
+// ============================================================================
+
+const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
+  const { addBook } = useBookStore();
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [selectedLibrary, setSelectedLibrary] = useState('');
+  const [libraryUrl, setLibraryUrl] = useState('');
+
+  const popularLibraries = [
+    { name: 'Berlin', url: 'https://www.onleihe.de/berlin' },
+    { name: 'München', url: 'https://www.onleihe.de/muenchen' },
+    { name: 'Hamburg', url: 'https://www.onleihe.de/hamburg' },
+    { name: 'Köln', url: 'https://www.onleihe.de/koeln' },
+    { name: 'Frankfurt', url: 'https://www.onleihe.de/frankfurt' },
+    { name: 'Stuttgart', url: 'https://www.onleihe.de/stuttgart' },
+    { name: 'Düsseldorf', url: 'https://www.onleihe.de/duesseldorf' },
+    { name: 'Dresden', url: 'https://www.onleihe.de/dresden' },
+  ];
+
+  const searchOnleihe = async () => {
+    if (!searchTerm.trim()) return;
+    setSearching(true);
+    
+    // Open Onleihe search in new tab (since no public API exists)
+    const searchUrl = libraryUrl 
+      ? `${libraryUrl}/search?searchTerm=${encodeURIComponent(searchTerm)}`
+      : `https://www.onleihe.de/search?searchTerm=${encodeURIComponent(searchTerm)}`;
+    
+    window.open(searchUrl, '_blank');
+    toast.success('Onleihe-Suche in neuem Tab geöffnet');
+    setSearching(false);
+  };
+
+  const handleISBNLookup = async (isbn: string) => {
+    setSearching(true);
+    try {
+      // Use Open Library API for book info
+      const response = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${isbn}&format=json&jscmd=data`);
+      const data = await response.json();
+      const bookData = data[`ISBN:${isbn}`];
+      
+      if (bookData) {
+        setResults([{
+          title: bookData.title,
+          author: bookData.authors?.[0]?.name || 'Unbekannt',
+          cover: bookData.cover?.medium || bookData.cover?.small,
+          isbn,
+          publisher: bookData.publishers?.[0]?.name,
+          year: bookData.publish_date,
+          pages: bookData.number_of_pages,
+        }]);
+      } else {
+        toast.error('Kein Buch mit dieser ISBN gefunden');
+      }
+    } catch (error) {
+      toast.error('Fehler bei der ISBN-Suche');
+    }
+    setSearching(false);
+  };
+
+  const addToWishlist = (book: any) => {
+    addBook({
+      title: book.title,
+      author: book.author,
+      format: 'txt',
+      file: '',
+      fileSize: 0,
+      cover: book.cover,
+    });
+    toast.success(`"${book.title}" zur Wunschliste hinzugefügt!`);
+  };
+
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      <SheetContent side="bottom" className="h-[80vh]">
+        <SheetHeader>
+          <SheetTitle className="flex items-center gap-2">
+            <Book className="w-5 h-5 text-blue-500" />
+            Onleihe - Digitale Bibliothek
+          </SheetTitle>
+        </SheetHeader>
+        
+        <div className="mt-6 space-y-6">
+          {/* Info Card */}
+          <Card className="bg-blue-50 dark:bg-blue-900/20">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <Globe className="w-5 h-5 text-blue-500 mt-0.5" />
+                <div>
+                  <h4 className="font-medium text-sm">Digitale Bibliothek</h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Die Onleihe bietet kostenlose E-Books und Hörbücher über Ihre lokale Bibliothek. 
+                    Sie benötigen einen gültigen Bibliotheksausweis.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Library Selection */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Ihre Bibliothek auswählen</Label>
+            <select 
+              className="w-full p-3 border rounded-lg bg-background"
+              value={selectedLibrary}
+              onChange={(e) => {
+                const lib = popularLibraries.find(l => l.name === e.target.value);
+                setSelectedLibrary(e.target.value);
+                setLibraryUrl(lib?.url || '');
+              }}
+            >
+              <option value="">-- Bibliothek wählen --</option>
+              {popularLibraries.map((lib) => (
+                <option key={lib.name} value={lib.name}>{lib.name}</option>
+              ))}
+              <option value="other">Andere Bibliothek...</option>
+            </select>
+            {selectedLibrary === 'other' && (
+              <Input 
+                placeholder="Onleihe-URL Ihrer Bibliothek eingeben"
+                value={libraryUrl}
+                onChange={(e) => setLibraryUrl(e.target.value)}
+                className="mt-2"
+              />
+            )}
+          </div>
+
+          {/* Search */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">Buch suchen</Label>
+            <div className="flex gap-2">
+              <Input 
+                placeholder="Titel, Autor oder ISBN eingeben..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && searchOnleihe()}
+              />
+              <Button onClick={searchOnleihe} disabled={searching}>
+                {searching ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+              </Button>
+            </div>
+          </div>
+
+          {/* ISBN Quick Search */}
+          <div className="space-y-2">
+            <Label className="text-sm font-medium">ISBN-Suche (Buchinfo)</Label>
+            <div className="flex gap-2">
+              <Input 
+                placeholder="978-3-..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleISBNLookup(searchTerm)}
+              />
+              <Button variant="outline" onClick={() => handleISBNLookup(searchTerm)}>
+                <Search className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Results */}
+          {results.length > 0 && (
+            <ScrollArea className="h-[200px]">
+              <div className="space-y-3">
+                {results.map((book, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-4 flex gap-4">
+                      {book.cover ? (
+                        <img src={book.cover} alt={book.title} className="w-16 h-24 object-cover rounded" />
+                      ) : (
+                        <div className="w-16 h-24 bg-muted rounded flex items-center justify-center">
+                          <Book className="w-8 h-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1">
+                        <h4 className="font-medium">{book.title}</h4>
+                        <p className="text-sm text-muted-foreground">{book.author}</p>
+                        {book.year && <p className="text-xs text-muted-foreground">{book.year}</p>}
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" variant="outline" onClick={() => addToWishlist(book)}>
+                            <Plus className="w-3 h-3 mr-1" />
+                            Zur Wunschliste
+                          </Button>
+                          {libraryUrl && (
+                            <Button size="sm" onClick={() => window.open(`${libraryUrl}/search?searchTerm=${encodeURIComponent(book.title)}`, '_blank')}>
+                              <ExternalLink className="w-3 h-3 mr-1" />
+                              In Onleihe suchen
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          {/* Direct Link */}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => window.open(libraryUrl || 'https://www.onleihe.de', '_blank')}
+            >
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Onleihe öffnen
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => window.open('https://www.onleihe.de/hilfe', '_blank')}
+            >
+              <Globe className="w-4 h-4 mr-2" />
+              Hilfe
+            </Button>
+          </div>
+
+          {/* Info */}
+          <div className="text-xs text-muted-foreground space-y-1">
+            <p>💡 <strong>Tipp:</strong> Sie benötigen einen Bibliotheksausweis für den Zugang.</p>
+            <p>📚 Ausgeliehene Bücher können direkt in der App geöffnet werden (EPUB/PDF).</p>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
