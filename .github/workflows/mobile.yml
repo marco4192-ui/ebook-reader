@@ -11,16 +11,10 @@ on:
         required: true
         default: true
         type: boolean
-      build_ios:
-        description: 'Build iOS IPA'
-        required: true
-        default: false
-        type: boolean
 
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    if: github.event.inputs.build_android == 'true' || startsWith(github.ref, 'refs/tags/')
     
     steps:
       - name: Checkout repository
@@ -41,41 +35,26 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Prepare static build
+      - name: Prepare static build (remove API routes)
         run: |
-          # Move API routes out of app directory (incompatible with static export)
-          mkdir -p .api-backup
-          mv src/app/api .api-backup/ 2>/dev/null || true
+          # Remove API routes - incompatible with static export
+          rm -rf src/app/api
           
-          # Create static config
-          cat > next.config.ts << 'EOF'
+          # Create static Next.js config
+          cat > next.config.ts << 'NEXTCONFIG'
           import type { NextConfig } from "next";
-          
           const nextConfig: NextConfig = {
             output: "export",
             trailingSlash: true,
-            images: {
-              unoptimized: true,
-            },
-            typescript: {
-              ignoreBuildErrors: true,
-            },
+            images: { unoptimized: true },
+            typescript: { ignoreBuildErrors: true },
             reactStrictMode: false,
           };
-          
           export default nextConfig;
-          EOF
-          
-          # Update package.json build script for static export
-          sed -i 's/next build && cp -r .next\/static .next\/standalone\/.next\/ && cp -r public .next\/standalone\//next build/' package.json
+          NEXTCONFIG
 
       - name: Build static app
-        run: npm run build
-
-      - name: Restore API routes
-        run: |
-          mv .api-backup/api src/app/ 2>/dev/null || true
-          rm -rf .api-backup
+        run: npx next build
 
       - name: Initialize Capacitor
         run: |
@@ -88,6 +67,7 @@ jobs:
       - name: Build Android APK
         run: |
           cd android
+          chmod +x ./gradlew
           ./gradlew assembleDebug
         continue-on-error: true
 
@@ -96,81 +76,6 @@ jobs:
         with:
           name: android-apk
           path: android/app/build/outputs/apk/debug/*.apk
-          retention-days: 30
-          if-no-files-found: ignore
-
-  build-ios:
-    runs-on: macos-latest
-    if: github.event.inputs.build_ios == 'true'
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Prepare static build
-        run: |
-          # Move API routes out of app directory (incompatible with static export)
-          mkdir -p .api-backup
-          mv src/app/api .api-backup/ 2>/dev/null || true
-          
-          # Create static config
-          cat > next.config.ts << 'EOF'
-          import type { NextConfig } from "next";
-          
-          const nextConfig: NextConfig = {
-            output: "export",
-            trailingSlash: true,
-            images: {
-              unoptimized: true,
-            },
-            typescript: {
-              ignoreBuildErrors: true,
-            },
-            reactStrictMode: false,
-          };
-          
-          export default nextConfig;
-          EOF
-          
-          # Update package.json build script for static export
-          sed -i '' 's/next build && cp -r .next\/static .next\/standalone\/.next\/ && cp -r public .next\/standalone\//next build/' package.json
-
-      - name: Build static app
-        run: npm run build
-
-      - name: Restore API routes
-        run: |
-          mv .api-backup/api src/app/ 2>/dev/null || true
-          rm -rf .api-backup
-
-      - name: Initialize Capacitor
-        run: |
-          npx cap init "eBook Reader Pro" "com.ebookreader.pro" --web-dir out || true
-          npx cap add ios || true
-
-      - name: Sync Capacitor
-        run: npx cap sync ios || true
-
-      - name: Build iOS App
-        run: |
-          cd ios/App
-          xcodebuild -workspace App.xcworkspace -scheme App -configuration Debug -sdk iphoneos -archivePath build/App.xcarchive archive
-        continue-on-error: true
-
-      - name: Upload iOS IPA
-        uses: actions/upload-artifact@v4
-        with:
-          name: ios-ipa
-          path: ios/App/build/*.ipa
           retention-days: 30
           if-no-files-found: ignore
 
@@ -183,9 +88,6 @@ jobs:
       contents: write
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Download Android APK
         uses: actions/download-artifact@v4
         with:
@@ -205,17 +107,11 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            artifacts/android/*.apk
+          files: artifacts/android/*.apk
           generate_release_notes: true
           draft: true
           body: |
-            ## 📱 eBook Reader Pro Release
-            
-            ### Installation:
-            - **Android**: Lade die APK herunter und installiere sie
-            - **PWA**: Besuche die Web-App und installiere sie über den Browser
-            - **Web**: https://github.com/marco4192-ui/ebook-reader
+            ## 📱 eBook Reader Pro
             
             ### Features:
             - 📚 EPUB, PDF, TXT, MD, MOBI, AZW3, FB2, DJVU Support
@@ -224,5 +120,9 @@ jobs:
             - 🔊 Text-to-Speech
             - ☁️ Cloud-Sync
             - ♿ Barrierefreiheit
+            
+            ### Installation:
+            - **Android**: APK herunterladen und installieren
+            - **Web**: https://marco4192-ui.github.io/ebook-reader/
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

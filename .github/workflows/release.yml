@@ -1,12 +1,10 @@
 name: Release
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version bump type (patch, minor, major) or specific version'
+        description: 'Version bump type'
         required: true
         default: 'patch'
         type: choice
@@ -40,39 +38,33 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Get current version
-        id: current_version
+      - name: Bump version
+        run: |
+          npm version ${{ github.event.inputs.version }} -m "chore: release v%s"
+          git push origin HEAD
+          git push origin --tags
+
+      - name: Get version
+        id: version
         run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
 
-      - name: Bump version
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          npm version ${{ github.event.inputs.version }} -m "chore: bump version to %s"
-          git push origin main
-          git push --tags origin main
-
       - name: Create Release Notes
-        if: github.event_name == 'workflow_dispatch'
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          VERSION=${{ steps.version.outputs.version }}
           echo "## eBook Reader Pro v${VERSION}" > RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          echo "### Änderungen seit der letzten Version:" >> RELEASE_NOTES.md
+          echo "### Changes:" >> RELEASE_NOTES.md
+          git log --pretty=format:"- %s" HEAD~5..HEAD >> RELEASE_NOTES.md || echo "- New release" >> RELEASE_NOTES.md
           echo "" >> RELEASE_NOTES.md
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD~1)..HEAD >> RELEASE_NOTES.md || echo "- Initial release" >> RELEASE_NOTES.md
-          echo "" >> RELEASE_NOTES.md
-          echo "### Installation:" >> RELEASE_NOTES.md
-          echo "- **Web/PWA:** [https://marco4192-ui.github.io/ebook-reader/](https://marco4192-ui.github.io/ebook-reader/)" >> RELEASE_NOTES.md
-          echo "- **Android:** Lade die APK von der Release-Seite herunter" >> RELEASE_NOTES.md
-          echo "- **iOS:** Über TestFlight (nach Verfügbarkeit)" >> RELEASE_NOTES.md
+          echo "### Deployment:" >> RELEASE_NOTES.md
+          echo "- **PWA**: https://marco4192-ui.github.io/ebook-reader/" >> RELEASE_NOTES.md
+          echo "- **Android APK**: Available in this release" >> RELEASE_NOTES.md
 
       - name: Create GitHub Release
-        if: github.event_name == 'workflow_dispatch'
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.current_version.outputs.version }}
+          tag_name: v${{ steps.version.outputs.version }}
           body_path: RELEASE_NOTES.md
           draft: true
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
