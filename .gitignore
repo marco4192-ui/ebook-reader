@@ -39,13 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Runtime-/Umgebungsartefakte (niemals einchecken)
+*.log
+*.pid
+/api-backup
 local-*
 .claude
 .z-ai-config
-dev.log
 test
 prompt
 
-server.log
-# Skills directory
-/skills/
+# Lokale Datenbestände (Sandbox-/Entwicklungsumgebung)
+/db/
+/download/

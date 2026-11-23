@@ -1,4 +1,5 @@
 import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize } from '@capacitor/keyboard';
 
 const config: CapacitorConfig = {
   appId: 'com.ebookreader.pro',
@@ -23,7 +24,7 @@ const config: CapacitorConfig = {
       backgroundColor: '#0a0a0a',
     },
     Keyboard: {
-      resize: 'body',
+      resize: KeyboardResize.Body,
       resizeOnFullScreen: true,
     },
     Haptics: {
@@ -31,7 +32,9 @@ const config: CapacitorConfig = {
     },
   },
   android: {
-    allowMixedContent: true,
+    // Aus Sicherheitsgründen deaktiviert: erlaubte gemischte Inhalte
+    // (HTTP-Ressourcen in HTTPS-Kontext) öffnen eine Angriffsfläche.
+    allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
     backgroundColor: '#0a0a0a',
