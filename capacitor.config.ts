@@ -1,5 +1,16 @@
-import type { CapacitorConfig } from '@capacitor/cli';
 import { KeyboardResize } from '@capacitor/keyboard';
+
+// Minimaler Typ statt Import aus '@capacitor/cli': Die Capacitor-CLI ist keine
+// Runtime-Abhängigkeit mehr (nur für native Builds on demand installiert).
+interface CapacitorConfig {
+  appId: string;
+  appName: string;
+  webDir: string;
+  server?: Record<string, unknown>;
+  plugins?: Record<string, Record<string, unknown>>;
+  android?: Record<string, unknown>;
+  ios?: Record<string, unknown>;
+}
 
 const config: CapacitorConfig = {
   appId: 'com.ebookreader.pro',

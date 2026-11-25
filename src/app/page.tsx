@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 import { QRCodeSVG } from 'qrcode.react';
 import {
-  Book, Upload, Settings, Bookmark, ChevronLeft, ChevronRight,
+  Book as BookIcon, Upload, Settings, Bookmark, ChevronLeft, ChevronRight,
   List, X, Sun, Moon, BookOpen, Type, AlignJustify, Trash2,
-  FileText, File, BookmarkCheck, Plus, Minus, Search, Volume2,
+  FileText, File as FileIcon, BookmarkCheck, Plus, Minus, Search, Volume2,
   VolumeX, Highlighter, Clock, Target, Trophy, BarChart3,
   Tag, Download, Edit3, Globe, Award, RefreshCw, Network,
   Eye, Star, Pin, Filter, Grid, Languages, CheckCircle, Sparkles,
@@ -15,11 +15,11 @@ import {
   Cloud, CloudOff, QrCode, Link2, Copy, Share2, Smartphone,
   Check, AlertCircle, Palette, Zap, Vibrate, Hand, Play, Pause,
   SkipForward, SkipBack, MoonStar, MessageCircle, Brain, TrendingUp, Send, Loader2,
-  Map, MapPin, Rss, Camera, Users, Heart, Users2, Circle, Radio, ExternalLink,
+  Map as MapIcon, MapPin, Rss, Camera, Users, Heart, Users2, Circle, Radio, ExternalLink,
   Calendar, HeartHandshake, Swords, Briefcase, UserX, UserPlus, Save, Newspaper,
   FolderTree, PiggyBank, Headphones, Mic, MicOff, Keyboard, Focus, Layers, Wand2,
   Shield, Lock, ShieldCheck, Key, Mail, Music, Database, WifiOff, Wifi, FileDown,
-  HardDrive, Trash, EyeOff, UserShield, FileText as FileTextIcon, Instagram, Twitter,
+  HardDrive, Trash, EyeOff, FileText as FileTextIcon, Instagram, Twitter,
   Quote, Bell
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -32,14 +32,19 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { useBookStore, type Book, type Bookmark as BookmarkType, type Highlight, type Note, type Character, type BookLocation, type TimelineEvent, type CustomTheme, type RSSFeed, type RSSArticle, type WebArticle, type SmartShelf, type BookmarkFolder, type ReadingGoal, type ReadingSpeedRecord, type ReadingHourRecord, type BookClub, type ClubMessage, type BookRecommendation, type Friend, type BookComment, type BookCommentReply, type SocialChallenge, getAllTags, calculateReadingTime } from '@/lib/book-store';
+import { useBookStore, initFileStorage, type Book, type Bookmark as BookmarkType, type Highlight, type Note, type Character, type BookLocation, type TimelineEvent, type CustomTheme, type RSSFeed, type RSSArticle, type WebArticle, type SmartShelf, type BookmarkFolder, type ReadingGoal, type ReadingSpeedRecord, type ReadingHourRecord, type BookClub, type ClubMessage, type BookRecommendation, type Friend, type BookComment, type BookCommentReply, type SocialChallenge, type QuizQuestion, type GlobalSearchResult, getAllTags, calculateReadingTime } from '@/lib/book-store';
 import { toast } from 'sonner';
 import { PWAInstallPrompt } from '@/components/pwa-install';
+import { FutureFeatureNotice } from '@/components/future-feature-notice';
+import { utf8ToBase64 } from '@/lib/utils';
 import { useNativeFeatures } from '@/hooks/use-native';
 
 // ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
+
+// Zur Build-Zeit konstant: '1' = statischer Export (GitHub Pages/Capacitor) ohne API-Routen.
+const IS_STATIC_BUILD = process.env.NEXT_PUBLIC_STATIC_EXPORT === '1';
 
 const detectFormat = (filename: string): Book['format'] => {
   const ext = filename.split('.').pop()?.toLowerCase();
@@ -63,22 +68,39 @@ const detectFormat = (filename: string): Book['format'] => {
   }
 };
 
+/** Extrahiert den Textinhalt eines Buchs (nur txt/md mit Data-URL). */
+const getTextBookContent = (book: Book): string => {
+  if ((book.format === 'txt' || book.format === 'md') && book.file.startsWith('data:text')) {
+    try {
+      const base64 = book.file.split(',')[1];
+      if (!base64) return '';
+      const decoded = decodeURIComponent(atob(base64).split('').map(c =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+      ).join(''));
+      return decoded;
+    } catch {
+      return '';
+    }
+  }
+  return '';
+};
+
 const FormatIcon = ({ format }: { format: Book['format'] }) => {
   switch (format) {
-    case 'pdf': return <File className="w-4 h-4 text-red-500" />;
+    case 'pdf': return <FileIcon className="w-4 h-4 text-red-500" />;
     case 'epub': return <BookOpen className="w-4 h-4 text-blue-500" />;
     case 'txt': return <FileText className="w-4 h-4 text-gray-500" />;
     case 'md': return <FileText className="w-4 h-4 text-purple-500" />;
     case 'mobi':
-    case 'azw3': return <Book className="w-4 h-4 text-orange-500" />;
+    case 'azw3': return <BookIcon className="w-4 h-4 text-orange-500" />;
     case 'fb2': return <BookOpen className="w-4 h-4 text-cyan-500" />;
-    case 'djvu': return <File className="w-4 h-4 text-amber-600" />;
+    case 'djvu': return <FileIcon className="w-4 h-4 text-amber-600" />;
     case 'cbz':
     case 'cbr':
     case 'cb7':
     case 'cbt':
     case 'acv': return <ImageIcon className="w-4 h-4 text-green-500" />;
-    default: return <File className="w-4 h-4" />;
+    default: return <FileIcon className="w-4 h-4" />;
   }
 };
 
@@ -2057,7 +2079,7 @@ const KnowledgeGraph = ({ open, onOpenChange }: { open: boolean; onOpenChange: (
                 <div className="space-y-2">
                   {books.map(book => (
                     <div key={book.id} className="flex items-center gap-2 p-2 rounded-lg bg-muted/50">
-                      <Book className="w-4 h-4 text-amber-500" />
+                      <BookIcon className="w-4 h-4 text-amber-500" />
                       <span className="text-sm truncate flex-1">{book.title}</span>
                       {book.rating && <div className="flex">{[...Array(book.rating)].map((_, i) => <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />)}</div>}
                     </div>
@@ -2149,7 +2171,7 @@ const GutenbergPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (
           if (response.ok) {
             const content = await response.text();
             // Store as a data URL
-            const base64 = btoa(unescape(encodeURIComponent(content)));
+            const base64 = utf8ToBase64(content);
             const dataUrl = `data:text/html;base64,${base64}`;
             addBook({ 
               title: book.title, 
@@ -2321,6 +2343,10 @@ const BookDetailPanel = ({ book, open, onOpenChange }: { book: Book; open: boole
   const [autoTagging, setAutoTagging] = useState(false);
   const [showQRExport, setShowQRExport] = useState(false);
   const [showShareLink, setShowShareLink] = useState(false);
+  const [showPodcastMode, setShowPodcastMode] = useState(false);
+
+  // Textinhalt für den Podcast-Modus (funktioniert für txt/md; andere Formate: FutureFeatureNotice im Panel)
+  const bookContent = useMemo(() => getTextBookContent(book), [book]);
 
   const handleAutoTag = async () => {
     setAutoTagging(true);
@@ -2344,7 +2370,7 @@ const BookDetailPanel = ({ book, open, onOpenChange }: { book: Book; open: boole
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent>
-        <SheetHeader><SheetTitle className="flex items-center gap-2"><Book className="w-5 h-5" />Buchdetails</SheetTitle></SheetHeader>
+        <SheetHeader><SheetTitle className="flex items-center gap-2"><BookIcon className="w-5 h-5" />Buchdetails</SheetTitle></SheetHeader>
         <ScrollArea className="h-[calc(100vh-100px)] mt-4">
           <div className="space-y-6">
             <div>
@@ -2405,6 +2431,10 @@ const BookDetailPanel = ({ book, open, onOpenChange }: { book: Book; open: boole
                   <Link2 className="w-4 h-4 mr-2" />
                   Link teilen
                 </Button>
+                <Button variant="outline" size="sm" onClick={() => setShowPodcastMode(true)} className="col-span-2">
+                  <Radio className="w-4 h-4 mr-2" />
+                  Podcast-Modus
+                </Button>
               </div>
             </div>
           </div>
@@ -2413,6 +2443,7 @@ const BookDetailPanel = ({ book, open, onOpenChange }: { book: Book; open: boole
       
       <QRExportPanel book={book} open={showQRExport} onOpenChange={setShowQRExport} />
       <ShareableLinkExport book={book} open={showShareLink} onOpenChange={setShowShareLink} />
+      <PodcastModePanel book={book} bookContent={bookContent} open={showPodcastMode} onOpenChange={setShowPodcastMode} />
     </Sheet>
   );
 };
@@ -2513,50 +2544,6 @@ const QRExportPanel = ({ book, open, onOpenChange }: { book: Book; open: boolean
 // ============================================================================
 
 const CloudSyncPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { cloudSyncStatus, setCloudSyncStatus, syncWithCloud, autoSyncEnabled, toggleAutoSync } = useBookStore();
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const cloudProviders = [
-    { id: 'google_drive', name: 'Google Drive', icon: '☁️' },
-    { id: 'dropbox', name: 'Dropbox', icon: '📦' },
-    { id: 'oneDrive', name: 'OneDrive', icon: '🔷' },
-  ] as const;
-
-  const handleConnect = async (provider: typeof cloudProviders[number]['id']) => {
-    // Simulate connection
-    setCloudSyncStatus({ provider, connected: true });
-    toast.success(`${cloudProviders.find(p => p.id === provider)?.name} verbunden!`);
-  };
-
-  const handleSync = async () => {
-    setIsSyncing(true);
-    const success = await syncWithCloud();
-    if (success) {
-      toast.success('Synchronisation erfolgreich!');
-    } else {
-      toast.error('Synchronisation fehlgeschlagen');
-    }
-    setIsSyncing(false);
-  };
-
-  const handleDisconnect = () => {
-    setCloudSyncStatus({ provider: 'none', connected: false, lastSync: undefined });
-    toast.info('Cloud-Verbindung getrennt');
-  };
-
-  const formatLastSync = (timestamp?: number) => {
-    if (!timestamp) return 'Nie';
-    const diff = Date.now() - timestamp;
-    const minutes = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-    
-    if (minutes < 1) return 'Gerade eben';
-    if (minutes < 60) return `Vor ${minutes} Min`;
-    if (hours < 24) return `Vor ${hours} Std`;
-    return `Vor ${days} Tagen`;
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[70vh]">
@@ -2566,119 +2553,18 @@ const CloudSyncPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (
             Cloud-Synchronisation
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {/* Current Status */}
-          <Card className={`${cloudSyncStatus.connected ? 'border-green-500/50 bg-green-50/50 dark:bg-green-900/20' : ''}`}>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {cloudSyncStatus.connected ? (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
-                        <Cloud className="w-5 h-5 text-green-600" />
-                      </div>
-                      <div>
-                        <p className="font-medium">
-                          {cloudProviders.find(p => p.id === cloudSyncStatus.provider)?.icon}{' '}
-                          {cloudProviders.find(p => p.id === cloudSyncStatus.provider)?.name || 'Verbunden'}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          Letzte Synchronisation: {formatLastSync(cloudSyncStatus.lastSync)}
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                        <CloudOff className="w-5 h-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="font-medium">Nicht verbunden</p>
-                        <p className="text-xs text-muted-foreground">Wählen Sie einen Cloud-Anbieter</p>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {cloudSyncStatus.connected && (
-                  <Button variant="ghost" size="sm" onClick={handleDisconnect}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Cloud Providers */}
-          {!cloudSyncStatus.connected && (
-            <div className="space-y-3">
-              <Label className="text-sm font-medium">Cloud-Anbieter wählen</Label>
-              <div className="grid grid-cols-3 gap-3">
-                {cloudProviders.map((provider) => (
-                  <Button
-                    key={provider.id}
-                    variant="outline"
-                    className="flex flex-col h-auto py-4 gap-2"
-                    onClick={() => handleConnect(provider.id)}
-                  >
-                    <span className="text-2xl">{provider.icon}</span>
-                    <span className="text-xs">{provider.name}</span>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Sync Actions */}
-          {cloudSyncStatus.connected && (
-            <div className="space-y-4">
-              <Button 
-                onClick={handleSync} 
-                disabled={isSyncing}
-                className="w-full"
-              >
-                {isSyncing ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                    Synchronisiere...
-                  </>
-                ) : (
-                  <>
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Jetzt synchronisieren
-                  </>
-                )}
-              </Button>
-
-              {/* Auto-sync toggle */}
-              <div className="flex items-center justify-between p-3 rounded-lg border">
-                <div className="flex items-center gap-3">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Auto-Sync</p>
-                    <p className="text-xs text-muted-foreground">Automatisch synchronisieren</p>
-                  </div>
-                </div>
-                <Button
-                  variant={autoSyncEnabled ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={toggleAutoSync}
-                >
-                  {autoSyncEnabled ? 'An' : 'Aus'}
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {/* Sync Info */}
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Die Cloud-Synchronisation mit Google Drive, Dropbox oder OneDrive ist noch nicht implementiert: Es existieren keine OAuth-Anmeldungen und keine Server-Komponente. Die früheren „Verbinden“- und „Jetzt synchronisieren“-Buttons änderten nur den Status-Text, ohne Daten zu übertragen. Ihre Bibliothek liegt ausschließlich lokal."
+          />
           <Card>
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                <div className="text-sm text-muted-foreground">
-                  <p className="font-medium text-foreground mb-1">Hinweis</p>
-                  <p>Ihre Bücher und Lesezeichen werden sicher in der Cloud gespeichert und können auf allen Ihren Geräten synchronisiert werden.</p>
-                </div>
-              </div>
+            <CardContent className="p-4 space-y-2">
+              <p className="text-sm font-medium">Was bereits funktioniert</p>
+              <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                <li>Lokale Bibliothek (IndexedDB, dateibasiert)</li>
+                <li>Vollständiger Daten-Export/Import über „Export &amp; Import“</li>
+              </ul>
             </CardContent>
           </Card>
         </div>
@@ -2742,7 +2628,7 @@ const ShareableLinkExport = ({ book, open, onOpenChange }: { book: Book; open: b
           <Card>
             <CardContent className="p-4 flex gap-4">
               <div className="w-12 h-16 rounded bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 flex items-center justify-center shrink-0">
-                <Book className="w-6 h-6 text-amber-600" />
+                <BookIcon className="w-6 h-6 text-amber-600" />
               </div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-medium truncate">{book.title}</h3>
@@ -3114,13 +3000,7 @@ const BookAnalysisPanel = ({ text, bookTitle, author, open, onOpenChange }: { te
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'metrics' | 'themes' | 'mood'>('metrics');
 
-  useEffect(() => {
-    if (open && text) {
-      analyzeText();
-    }
-  }, [open, text]);
-
-  const analyzeText = async () => {
+  const analyzeText = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/analyze', {
@@ -3134,7 +3014,13 @@ const BookAnalysisPanel = ({ text, bookTitle, author, open, onOpenChange }: { te
       toast.error('Analyse fehlgeschlagen');
     }
     setLoading(false);
-  };
+  }, [text, bookTitle, author]);
+
+  useEffect(() => {
+    if (open && text) {
+      void analyzeText();
+    }
+  }, [open, text, analyzeText]);
 
   const getDifficultyColor = (level: number) => {
     if (level <= 3) return 'text-green-500';
@@ -4562,7 +4448,7 @@ const StatisticsPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
   const { readingStats, books, highlights, notes } = useBookStore();
   
   const last7Days = useMemo(() => {
-    const days = [];
+    const days: { day: string; pages: number; time: number }[] = [];
     for (let i = 6; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -4849,7 +4735,7 @@ const SmartShelvesPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
       <SheetContent side="right" className="w-80">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Book className="w-5 h-5" />
+            <BookIcon className="w-5 h-5" />
             Intelligente Regale
           </SheetTitle>
         </SheetHeader>
@@ -4932,7 +4818,7 @@ const SmartShelvesPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
                           key={book.id}
                           className="w-8 h-10 rounded bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 border-2 border-background flex items-center justify-center"
                         >
-                          <Book className="w-4 h-4 text-amber-600" />
+                          <BookIcon className="w-4 h-4 text-amber-600" />
                         </div>
                       ))}
                       {shelfBooks.length > 5 && (
@@ -5232,7 +5118,7 @@ const ReadingListsWithDeadlinesPanel = ({ open, onOpenChange }: { open: boolean;
                           {book.progress >= 100 ? (
                             <CheckCircle className="w-4 h-4 text-green-500" />
                           ) : (
-                            <Book className="w-4 h-4 text-amber-600" />
+                            <BookIcon className="w-4 h-4 text-amber-600" />
                           )}
                         </div>
                       ))}
@@ -5402,7 +5288,7 @@ const ReadingSpeedChart = ({ open, onOpenChange }: { open: boolean; onOpenChange
   const { readingSpeedRecords, settings } = useBookStore();
 
   const last30Days = useMemo(() => {
-    const days = [];
+    const days: { date: string; day: number; wpm: number; pagesRead: number; timeSpent: number }[] = [];
     for (let i = 29; i >= 0; i--) {
       const date = new Date();
       date.setDate(date.getDate() - i);
@@ -5569,7 +5455,7 @@ const GoalTrackingPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
   };
 
   const goalLabels: Record<ReadingGoal['type'], { name: string; unit: string; icon: typeof BookOpen }> = {
-    books: { name: 'Bücher', unit: 'Bücher', icon: Book },
+    books: { name: 'Bücher', unit: 'Bücher', icon: BookIcon },
     pages: { name: 'Seiten', unit: 'Seiten', icon: FileText },
     time: { name: 'Zeit', unit: 'Stunden', icon: Clock },
     streak: { name: 'Streak', unit: 'Tage', icon: Target },
@@ -5721,7 +5607,7 @@ const SavingsPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
           <div className="grid grid-cols-2 gap-4">
             <Card>
               <CardContent className="p-4 text-center">
-                <Book className="w-8 h-8 mx-auto mb-2 text-blue-500" />
+                <BookIcon className="w-8 h-8 mx-auto mb-2 text-blue-500" />
                 <p className="text-2xl font-bold">{savings.booksCount}</p>
                 <p className="text-xs text-muted-foreground">Kostenlose Bücher</p>
               </CardContent>
@@ -5760,7 +5646,7 @@ const SavingsPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                   <div className="space-y-2">
                     {gutenbergBooks.map((book) => (
                       <div key={book.id} className="flex items-center gap-2 text-sm">
-                        <Book className="w-4 h-4 text-green-500" />
+                        <BookIcon className="w-4 h-4 text-green-500" />
                         <span className="truncate">{book.title}</span>
                       </div>
                     ))}
@@ -6099,7 +5985,7 @@ const LocationMapPanel = ({ bookId, open, onOpenChange }: { bookId: string; open
       <SheetContent side="bottom" className="h-[80vh]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Map className="w-5 h-5 text-primary" />
+            <MapIcon className="w-5 h-5 text-primary" />
             Ortskarte ({bookLocations.length} Orte)
           </SheetTitle>
         </SheetHeader>
@@ -6187,7 +6073,7 @@ const LocationMapPanel = ({ bookId, open, onOpenChange }: { bookId: string; open
                 </div>
               ) : (
                 <div className="text-center text-muted-foreground">
-                  <Map className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <MapIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p>Noch keine Orte</p>
                   <p className="text-sm">Fügen Sie Orte hinzu, die im Buch erwähnt werden</p>
                 </div>
@@ -6684,7 +6570,7 @@ const ISBNScanner = ({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
         author: bookInfo.author,
         cover: bookInfo.cover,
         format: 'txt',
-        file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(bookInfo.description || 'Keine Beschreibung verfügbar')))}]}`,
+        file: `data:text/plain;base64,${utf8ToBase64(bookInfo.description || 'Keine Beschreibung verfügbar')}`,
         fileSize: (bookInfo.description || '').length,
       });
       toast.success(`"${bookInfo.title}" wurde hinzugefügt!`);
@@ -6729,7 +6615,7 @@ const ISBNScanner = ({ open, onOpenChange }: { open: boolean; onOpenChange: (ope
                     <img src={bookInfo.cover} alt={bookInfo.title} className="w-24 h-36 object-cover rounded" />
                   ) : (
                     <div className="w-24 h-36 bg-muted rounded flex items-center justify-center">
-                      <Book className="w-8 h-8 text-muted-foreground" />
+                      <BookIcon className="w-8 h-8 text-muted-foreground" />
                     </div>
                   )}
                   <div className="flex-1">
@@ -6814,7 +6700,7 @@ const RSSPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: 
     addBook({
       title: article.title,
       format: 'txt',
-      file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+      file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
       fileSize: article.content.length,
     });
     toast.success('Artikel als Buch gespeichert!');
@@ -7033,7 +6919,7 @@ const WebArticleSaver = ({ open, onOpenChange }: { open: boolean; onOpenChange: 
         title: article.title,
         author: article.author,
         format: 'txt',
-        file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+        file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
         fileSize: article.content.length,
       });
       toast.success('Artikel als Buch gespeichert!');
@@ -7140,6 +7026,9 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
   const [showPocket, setShowPocket] = useState(false);
   const [showNotionExport, setShowNotionExport] = useState(false);
   const [showSpotify, setShowSpotify] = useState(false);
+  const [showRSS, setShowRSS] = useState(false);
+  const [showISBN, setShowISBN] = useState(false);
+  const [showWebArticle, setShowWebArticle] = useState(false);
   const [showOnleihe, setShowOnleihe] = useState(false);
 
   // Feature 20: Privatsphäre & Performance
@@ -7171,19 +7060,24 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
 
   const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
     setIsUploading(true);
+    // Race-Condition-Fix: FileReader-Loads wurden zuvor parallel gestartet, während
+    // isUploading bereits wieder auf false gesetzt wurde. Jetzt: sequenziell erwarten.
+    const readAsDataUrl = (file: File) =>
+      new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
     for (const file of Array.from(files)) {
       try {
+        const base64 = await readAsDataUrl(file);
         const format = detectFormat(file.name);
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = reader.result as string;
-          const title = file.name.replace(/\.[^/.]+$/, '');
-          addBook({ title, format, file: base64, fileSize: file.size });
-          toast.success(`"${title}" wurde hinzugefügt`);
-        };
-        reader.readAsDataURL(file);
+        const title = file.name.replace(/\.[^/.]+$/, '');
+        addBook({ title, format, file: base64, fileSize: file.size });
+        toast.success(`"${title}" wurde hinzugefügt`);
       } catch { toast.error(`Fehler beim Laden von ${file.name}`); }
     }
     setIsUploading(false);
@@ -7198,7 +7092,7 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                <Book className="w-5 h-5 text-white" />
+                <BookIcon className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h1 className="text-xl font-bold">eBook Reader</h1>
@@ -7253,7 +7147,7 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
               <motion.div key={book.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="relative group">
                 <Card className="cursor-pointer overflow-hidden border-0 shadow-lg hover:shadow-xl transition-shadow" onClick={() => onOpenBook(book)}>
                   <div className="aspect-[2/3] bg-gradient-to-br from-amber-100 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 relative">
-                    {book.cover ? <img src={book.cover} alt={book.title} className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center"><Book className="w-16 h-16 text-amber-600/40" /></div>}
+                    {book.cover ? <img src={book.cover} alt={book.title} className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center"><BookIcon className="w-16 h-16 text-amber-600/40" /></div>}
                     {book.isPinned && <div className="absolute top-2 left-2 p-1 rounded-full bg-primary text-primary-foreground"><Pin className="w-3 h-3" /></div>}
                     <div className="absolute top-2 right-2 px-2 py-1 rounded-full bg-background/80 backdrop-blur text-xs font-medium flex items-center gap-1"><FormatIcon format={book.format} /></div>
                     {book.rating && <div className="absolute bottom-2 left-2 flex">{[...Array(book.rating)].map((_, i) => <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />)}</div>}
@@ -7369,7 +7263,7 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
                   <span className="text-[10px]">Leselisten</span>
                 </Button>
                 <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowOnleihe(true); }}>
-                  <Book className="w-5 h-5 text-blue-600" />
+                  <BookIcon className="w-5 h-5 text-blue-600" />
                   <span className="text-[10px]">Onleihe</span>
                 </Button>
                 <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowGoodreads(true); }}>
@@ -7410,10 +7304,8 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
                   <Music className="w-5 h-5 text-green-600" />
                   <span className="text-[10px]">Spotify</span>
                 </Button>
-                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowPodcast(true); }}>
-                  <Headphones className="w-5 h-5 text-fuchsia-500" />
-                  <span className="text-[10px]">Podcast</span>
-                </Button>
+                {/* Podcast-Modus: geplante Funktion, wird aus der Buchansicht geöffnet –
+                    der frühere Button hier verursachte einen Absturz (undefinierter Zustand). */}
               </div>
             </div>
 
@@ -7436,6 +7328,14 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
                 <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowRSS(true); }}>
                   <Rss className="w-5 h-5 text-yellow-500" />
                   <span className="text-[10px]">RSS</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowISBN(true); }}>
+                  <Camera className="w-5 h-5 text-emerald-500" />
+                  <span className="text-[10px]">ISBN-Scan</span>
+                </Button>
+                <Button variant="outline" className="h-auto py-3 flex flex-col items-center gap-1" onClick={() => { setShowSettings(false); setShowWebArticle(true); }}>
+                  <Newspaper className="w-5 h-5 text-teal-500" />
+                  <span className="text-[10px]">Web-Artikel</span>
                 </Button>
               </div>
             </div>
@@ -7481,6 +7381,10 @@ const LibraryView = ({ onOpenBook }: { onOpenBook: (book: Book) => void }) => {
       <AmbientSoundPlayer open={showAmbient} onOpenChange={setShowAmbient} />
       <SettingsPanel open={showSettings} onOpenChange={setShowSettings} />
       <CloudSyncPanel open={showCloudSync} onOpenChange={setShowCloudSync} />
+      {/* Echte, funktionsfähige Panels: RSS, ISBN-Scan, Web-Artikel-Speicherung */}
+      <RSSPanel open={showRSS} onOpenChange={setShowRSS} />
+      <ISBNScanner open={showISBN} onOpenChange={setShowISBN} />
+      <WebArticleSaver open={showWebArticle} onOpenChange={setShowWebArticle} />
 
       {/* Feature 8: Organisation & Verwaltung Panels */}
       <SmartShelvesPanel open={showSmartShelves} onOpenChange={setShowSmartShelves} />
@@ -7534,7 +7438,7 @@ const PDFReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
   const containerRef = useRef<HTMLDivElement>(null);
   const pdfDocRef = useRef<any>(null);
   const sessionIdRef = useRef<string>('');
-  const { settings, addBookmark, getBookmarks, removeBookmark, startReadingSession, endReadingSession } = useBookStore();
+  const { settings, addBookmark, getBookmarks, removeBookmark, startReadingSession, endReadingSession, updateBook } = useBookStore();
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [showMenu, setShowMenu] = useState(false);
@@ -7543,16 +7447,28 @@ const PDFReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
   const [scale, setScale] = useState(1.0);
   const [renderedPages, setRenderedPages] = useState<Map<number, string>>(new Map());
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Echte Sitzungs-Seitenzahl statt hartkodierter 1 tracken
+  const startPageRef = useRef<number>(1);
+  const maxPageRef = useRef<number>(1);
 
   // Start reading session
   useEffect(() => {
+    const initialPage = parseInt(book.currentLocation || '') || 1;
+    startPageRef.current = initialPage;
+    maxPageRef.current = initialPage;
     sessionIdRef.current = startReadingSession(book.id);
     return () => {
       if (sessionIdRef.current) {
-        endReadingSession(sessionIdRef.current, 1);
+        const pagesRead = Math.max(1, maxPageRef.current - startPageRef.current + 1);
+        endReadingSession(sessionIdRef.current, pagesRead);
       }
     };
   }, [book.id]);
+
+  // Höchste besuchte Seite der Sitzung verfolgen
+  useEffect(() => {
+    maxPageRef.current = Math.max(maxPageRef.current, currentPage);
+  }, [currentPage]);
 
   // Load PDF
   useEffect(() => {
@@ -7565,7 +7481,10 @@ const PDFReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
         const pdfjsLib = await import('pdfjs-dist');
         
         // Set worker path
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+        // Worker lokal aus /public ausliefern statt vom CDN:
+        // 1) funktioniert offline / im statischen Export,
+        // 2) Version ist garantiert identisch zur Library (CDN lieferte 404).
+        pdfjsLib.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.mjs', document.baseURI).href;
         
         let pdfData: any;
         
@@ -7587,6 +7506,8 @@ const PDFReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
         const pdf = await loadingTask.promise;
         pdfDocRef.current = pdf;
         setTotalPages(pdf.numPages);
+        // Gesamtseitenzahl im Buch speichern (echte Werte statt Schätzung)
+        updateBook(book.id, { totalPages: pdf.numPages });
         
         // Set initial page from book progress
         if (book.currentLocation) {
@@ -7754,7 +7675,7 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
   const containerRef = useRef<HTMLDivElement>(null);
   const renditionRef = useRef<any>(null);
   const bookRef = useRef<any>(null);
-  const { settings, addBookmark, getBookmarks, removeBookmark, addHighlight, startReadingSession, endReadingSession } = useBookStore();
+  const { settings, addBookmark, getBookmarks, removeBookmark, addHighlight, startReadingSession, endReadingSession, updateBook } = useBookStore();
   const [currentChapter, setCurrentChapter] = useState('');
   const [showMenu, setShowMenu] = useState(false);
   const [showNotes, setShowNotes] = useState(false);
@@ -7784,11 +7705,19 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
 
   useGestureNavigation(goNextCallback, goPrevCallback, settings.gestureNavigation);
 
+  // Echte Sitzungs-Seitenzahl tracken (epub.js-Locations = ~1024-Zeichen-Blöcke)
+  const startLocationRef = useRef<number | null>(null);
+  const maxLocationRef = useRef<number>(0);
+
   useEffect(() => {
     sessionIdRef.current = startReadingSession(book.id);
     return () => {
       if (sessionIdRef.current) {
-        endReadingSession(sessionIdRef.current, 1);
+        // Ohne Location-Info (Abbruch vor Laden) konservativ 1 annehmen
+        const pagesRead = startLocationRef.current === null
+          ? 1
+          : Math.max(1, maxLocationRef.current - startLocationRef.current + 1);
+        endReadingSession(sessionIdRef.current, pagesRead);
       }
     };
   }, [book.id]);
@@ -7848,6 +7777,12 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
           setCurrentCfi(cfi);
           onProgress(progress * 100, cfi);
           setIsBookmarked(getBookmarks(book.id).some(b => b.cfi === cfi));
+          // Location-Index für echte Sitzungs-Seitenzahl verfolgen
+          const locIndex = epubBook.locations.locationFromCfi(cfi);
+          if (typeof locIndex === 'number' && locIndex >= 0) {
+            if (startLocationRef.current === null) startLocationRef.current = locIndex;
+            maxLocationRef.current = Math.max(maxLocationRef.current, locIndex);
+          }
         });
 
         // Get chapter info and calculate reading time
@@ -7906,6 +7841,11 @@ const EPUBReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
         setTotalReadingTime(totalTime);
         
         epubBook.locations.generate(1024);
+        // Gesamtseitenzahl (Locations) im Buch speichern
+        const totalLocations = epubBook.locations.length();
+        if (typeof totalLocations === 'number' && totalLocations > 0) {
+          updateBook(book.id, { totalPages: totalLocations });
+        }
         
         clearTimeout(loadingTimeout);
         if (!loadingTimedOut) {
@@ -8052,7 +7992,7 @@ const TextReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
   const [scrollProgress, setScrollProgress] = useState(book.progress);
   const contentRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>('');
-  const { settings, addBookmark, getBookmarks, removeBookmark, addHighlight, startReadingSession, endReadingSession } = useBookStore();
+  const { settings, addBookmark, getBookmarks, removeBookmark, addHighlight, startReadingSession, endReadingSession, updateBook } = useBookStore();
   const [selectedText, setSelectedText] = useState('');
   const [showHighlightMenu, setShowHighlightMenu] = useState(false);
   const [highlightPosition, setHighlightPosition] = useState({ x: 0, y: 0 });
@@ -8088,11 +8028,20 @@ const TextReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
 
   useGestureNavigation(goForward, goBack, settings.gestureNavigation);
 
+  // „Seiten“ = Textlänge / ~1800 Zeichen; Sitzungs-Fortschritt über Scrollposition
+  const startProgressRef = useRef<number>(book.progress || 0);
+  const endProgressRef = useRef<number>(book.progress || 0);
+  const contentLengthRef = useRef<number>(0);
+
   useEffect(() => {
+    startProgressRef.current = book.progress || 0;
+    endProgressRef.current = book.progress || 0;
     sessionIdRef.current = startReadingSession(book.id);
     return () => {
       if (sessionIdRef.current) {
-        endReadingSession(sessionIdRef.current, 1);
+        const totalPages = Math.max(1, Math.ceil(contentLengthRef.current / 1800));
+        const pagesRead = Math.max(1, Math.round(((endProgressRef.current - startProgressRef.current) / 100) * totalPages));
+        endReadingSession(sessionIdRef.current, pagesRead);
       }
     };
   }, [book.id]);
@@ -8111,12 +8060,16 @@ const TextReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
             '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
           ).join(''));
           setContent(decoded);
+          contentLengthRef.current = decoded.length;
+          updateBook(book.id, { totalPages: Math.max(1, Math.ceil(decoded.length / 1800)) });
         } else {
           setError('Ungültiges Dateiformat');
         }
       } else {
         // Plain text
         setContent(book.file);
+        contentLengthRef.current = book.file.length;
+        updateBook(book.id, { totalPages: Math.max(1, Math.ceil(book.file.length / 1800)) });
       }
     } catch (err) {
       console.error('Text loading error:', err);
@@ -8137,6 +8090,7 @@ const TextReader = ({ book, onClose, onProgress }: { book: Book; onClose: () => 
     const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
     const progress = (scrollTop / (scrollHeight - clientHeight)) * 100;
     setScrollProgress(progress);
+    endProgressRef.current = Math.max(endProgressRef.current, progress);
     onProgress(progress, scrollTop.toString());
 
     // Haptic feedback on page change (scroll threshold)
@@ -8291,15 +8245,24 @@ const FB2Reader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
   const [scrollProgress, setScrollProgress] = useState(book.progress);
   const contentRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>('');
-  const { settings, addBookmark, getBookmarks, removeBookmark, startReadingSession, endReadingSession } = useBookStore();
+  const { settings, addBookmark, getBookmarks, removeBookmark, startReadingSession, endReadingSession, updateBook } = useBookStore();
   const [showNotes, setShowNotes] = useState(false);
   const tts = useTTS();
 
+  // „Seiten“ = HTML-Inhaltslänge / ~1800 Zeichen; Sitzungs-Fortschritt über Scrollposition
+  const startProgressRef = useRef<number>(book.progress || 0);
+  const endProgressRef = useRef<number>(book.progress || 0);
+  const contentLengthRef = useRef<number>(0);
+
   useEffect(() => {
+    startProgressRef.current = book.progress || 0;
+    endProgressRef.current = book.progress || 0;
     sessionIdRef.current = startReadingSession(book.id);
     return () => {
       if (sessionIdRef.current) {
-        endReadingSession(sessionIdRef.current, 1);
+        const totalPages = Math.max(1, Math.ceil(contentLengthRef.current / 1800));
+        const pagesRead = Math.max(1, Math.round(((endProgressRef.current - startProgressRef.current) / 100) * totalPages));
+        endReadingSession(sessionIdRef.current, pagesRead);
       }
     };
   }, [book.id]);
@@ -8374,6 +8337,8 @@ const FB2Reader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
           }
           
           setContent(html);
+          contentLengthRef.current = html.replace(/<[^>]*>/g, '').length;
+          updateBook(book.id, { totalPages: Math.max(1, Math.ceil(contentLengthRef.current / 1800)) });
         }
       } catch (error) {
         console.error('Error parsing FB2:', error);
@@ -8473,6 +8438,7 @@ const FB2Reader = ({ book, onClose, onProgress }: { book: Book; onClose: () => v
     const { scrollTop, scrollHeight, clientHeight } = contentRef.current;
     const progress = (scrollTop / (scrollHeight - clientHeight)) * 100;
     setScrollProgress(progress);
+    endProgressRef.current = Math.max(endProgressRef.current, progress);
     onProgress(progress, scrollTop.toString());
   };
 
@@ -8547,14 +8513,22 @@ const ComicReader = ({ book, onClose, onProgress }: { book: Book; onClose: () =>
   const [isManga, setIsManga] = useState(book.isManga || false);
   const containerRef = useRef<HTMLDivElement>(null);
   const sessionIdRef = useRef<string>('');
-  const { settings, updateSettings, startReadingSession, endReadingSession, addBookmark, getBookmarks, removeBookmark } = useBookStore();
+  const { settings, updateSettings, startReadingSession, endReadingSession, addBookmark, getBookmarks, removeBookmark, updateBook } = useBookStore();
+
+  // Echte Sitzungs-Seitenzahl statt hartkodierter 1 tracken (Comics: 0-basierte Seitenindizes)
+  const startPageRef = useRef<number>(0);
+  const maxPageRef = useRef<number>(0);
 
   // Start reading session
   useEffect(() => {
+    const initialPage = parseInt(book.currentLocation || '') || 0;
+    startPageRef.current = initialPage;
+    maxPageRef.current = initialPage;
     sessionIdRef.current = startReadingSession(book.id);
     return () => {
       if (sessionIdRef.current) {
-        endReadingSession(sessionIdRef.current, 1);
+        const pagesRead = Math.max(1, maxPageRef.current - startPageRef.current + 1);
+        endReadingSession(sessionIdRef.current, pagesRead);
       }
     };
   }, [book.id]);
@@ -8613,7 +8587,9 @@ const ComicReader = ({ book, onClose, onProgress }: { book: Book; onClose: () =>
           // Use libarchive.js for these formats
           try {
             const { Archive } = await import('libarchive.js');
-            const archive = await Archive.open(bytes);
+            // libarchive.js erwartet ein File-Objekt (Blob), kein TypedArray.
+            const archiveFile = new File([bytes], `comic.${format}`, { type: 'application/octet-stream' });
+            const archive = await Archive.open(archiveFile);
             const extractedFiles = await archive.extractFiles();
             
             const fileNames = sortFiles(Object.keys(extractedFiles).filter(isImage));
@@ -8678,6 +8654,9 @@ const ComicReader = ({ book, onClose, onProgress }: { book: Book; onClose: () =>
     if (pages.length > 0) {
       const progress = ((currentPage + 1) / pages.length) * 100;
       onProgress(progress, currentPage.toString(), currentPage + 1);
+      maxPageRef.current = Math.max(maxPageRef.current, currentPage);
+      // Echte Gesamtseitenzahl (Bilder) im Buch speichern
+      updateBook(book.id, { totalPages: pages.length });
     }
   }, [currentPage, pages.length]);
 
@@ -8867,7 +8846,7 @@ const ComicReader = ({ book, onClose, onProgress }: { book: Book; onClose: () =>
               <Label className="text-sm font-medium">Ansichtsmodus</Label>
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  { value: 'single', label: 'Einzelseite', icon: <Book className="w-4 h-4" /> },
+                  { value: 'single', label: 'Einzelseite', icon: <BookIcon className="w-4 h-4" /> },
                   { value: 'double', label: 'Doppelseite', icon: <Columns className="w-4 h-4" /> },
                   { value: 'vertical', label: 'Vertikal', icon: <Rows className="w-4 h-4" /> },
                   { value: 'webtoon', label: 'Webtoon', icon: <Rows className="w-4 h-4" /> },
@@ -8915,402 +8894,6 @@ const ComicReader = ({ book, onClose, onProgress }: { book: Book; onClose: () =>
           </div>
         </SheetContent>
       </Sheet>
-    </div>
-  );
-};
-
-// ============================================================================
-// BOOK CLUB PANEL
-// ============================================================================
-
-const BookClubPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { books } = useBookStore();
-  const [selectedClub, setSelectedClub] = useState<{id: string; name: string; description: string; members: number} | null>(null);
-  const [newClubName, setNewClubName] = useState('');
-  const [showCreate, setShowCreate] = useState(false);
-  const [message, setMessage] = useState('');
-
-  // Demo clubs
-  const clubs = [
-    { id: '1', name: 'Klassiker-Leser', description: 'Wir lesen die großen Werke der Weltliteratur', members: 12 },
-    { id: '2', name: 'Sci-Fi & Fantasy', description: 'Von Middle Earth bis Arrakis', members: 8 },
-    { id: '3', name: 'Manga & Anime', description: 'Japanische Comics und mehr', members: 24 },
-  ];
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
-            Buchclubs
-          </SheetTitle>
-        </SheetHeader>
-        <div className="flex h-[calc(100%-80px)] mt-4 gap-4">
-          {/* Club List */}
-          <div className="w-80 flex flex-col">
-            <Button onClick={() => setShowCreate(!showCreate)} className="mb-4">
-              <Plus className="w-4 h-4 mr-2" />
-              Neuer Club
-            </Button>
-            
-            {showCreate && (
-              <Card className="mb-4">
-                <CardContent className="p-4 space-y-3">
-                  <Input placeholder="Club-Name..." value={newClubName} onChange={(e) => setNewClubName(e.target.value)} />
-                  <div className="flex gap-2">
-                    <Button onClick={() => { toast.success('Club erstellt!'); setShowCreate(false); }} size="sm">Erstellen</Button>
-                    <Button variant="outline" size="sm" onClick={() => setShowCreate(false)}>Abbrechen</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            <ScrollArea className="flex-1">
-              <div className="space-y-2">
-                {clubs.map((club) => (
-                  <Card
-                    key={club.id}
-                    className={`cursor-pointer transition-all ${selectedClub?.id === club.id ? 'ring-2 ring-primary' : ''}`}
-                    onClick={() => setSelectedClub(club)}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white font-bold">
-                          {club.name[0]}
-                        </div>
-                        <div className="flex-1">
-                          <h4 className="font-medium">{club.name}</h4>
-                          <p className="text-xs text-muted-foreground">{club.members} Mitglieder</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-          </div>
-
-          {/* Club Detail */}
-          {selectedClub ? (
-            <div className="flex-1 flex flex-col">
-              <Card className="mb-4">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div>
-                      <h3 className="text-xl font-bold">{selectedClub.name}</h3>
-                      <p className="text-muted-foreground">{selectedClub.description}</p>
-                    </div>
-                    <Button size="sm" onClick={() => toast.success('Willkommen im Club!')}>
-                      <UserPlus className="w-4 h-4 mr-2" />
-                      Beitreten
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Chat */}
-              <Card className="flex-1 flex flex-col">
-                <CardContent className="p-4 flex-1 flex flex-col">
-                  <h4 className="font-medium mb-4 flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4" />
-                    Diskussion
-                  </h4>
-                  <ScrollArea className="flex-1 mb-4">
-                    <div className="space-y-3">
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs">M</div>
-                        <div className="flex-1 bg-muted rounded-lg p-3">
-                          <p className="text-sm">Hallo zusammen! Was haltet ihr vom aktuellen Buch?</p>
-                          <p className="text-xs text-muted-foreground mt-1">Max • vor 2 Stunden</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center text-white text-xs">L</div>
-                        <div className="flex-1 bg-muted rounded-lg p-3">
-                          <p className="text-sm">Sehr spannend! Besonders das dritte Kapitel...</p>
-                          <p className="text-xs text-muted-foreground mt-1">Lisa • vor 1 Stunde</p>
-                        </div>
-                      </div>
-                    </div>
-                  </ScrollArea>
-                  <div className="flex gap-2">
-                    <Input placeholder="Nachricht schreiben..." value={message} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && message.trim() && (toast.success('Nachricht gesendet!'), setMessage(''))} />
-                    <Button onClick={() => message.trim() && (toast.success('Nachricht gesendet!'), setMessage(''))}><Send className="w-4 h-4" /></Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-muted-foreground">
-              <div className="text-center">
-                <Users className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>Wähle einen Club aus</p>
-              </div>
-            </div>
-          )}
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-};
-
-// ============================================================================
-// AUDIOBOOK PLAYER
-// ============================================================================
-
-const AudiobookPlayer = ({ book, onClose }: { book: Book; onClose: () => void }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [playbackRate, setPlaybackRate] = useState(1);
-  const [volume, setVolume] = useState(1);
-  const [sleepTimer, setSleepTimer] = useState<number | null>(null);
-  const [sleepTimeLeft, setSleepTimeLeft] = useState<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { updateBook } = useBookStore();
-
-  // Initialize audio from book file
-  useEffect(() => {
-    if (!book.file) return;
-    
-    // Check if file is an audio format
-    const isAudio = book.file.startsWith('data:audio') || 
-                    book.file.endsWith('.mp3') || 
-                    book.file.endsWith('.m4b') ||
-                    book.file.endsWith('.m4a') ||
-                    book.file.endsWith('.wav');
-    
-    if (isAudio) {
-      audioRef.current = new Audio(book.file);
-      audioRef.current.addEventListener('loadedmetadata', () => {
-        setDuration(audioRef.current?.duration || 0);
-      });
-      audioRef.current.addEventListener('timeupdate', () => {
-        setCurrentTime(audioRef.current?.currentTime || 0);
-      });
-      audioRef.current.addEventListener('ended', () => {
-        setIsPlaying(false);
-      });
-    }
-    
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
-    };
-  }, [book.file]);
-
-  // Handle play/pause
-  useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.play().catch(() => {
-          toast.error('Audio konnte nicht abgespielt werden');
-          setIsPlaying(false);
-        });
-      } else {
-        audioRef.current.pause();
-      }
-    }
-  }, [isPlaying]);
-
-  // Handle playback rate change
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.playbackRate = playbackRate;
-    }
-  }, [playbackRate]);
-
-  // Handle volume change
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-    }
-  }, [volume]);
-
-  // Sleep timer
-  useEffect(() => {
-    if (sleepTimeLeft === null || sleepTimeLeft <= 0) return;
-    
-    const timer = setInterval(() => {
-      setSleepTimeLeft((prev) => {
-        if (prev && prev <= 1) {
-          setIsPlaying(false);
-          return null;
-        }
-        return prev ? prev - 1 : null;
-      });
-    }, 1000);
-    
-    return () => clearInterval(timer);
-  }, [sleepTimeLeft]);
-
-  const togglePlay = () => setIsPlaying(!isPlaying);
-  
-  const skipForward = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.min(currentTime + 30, duration);
-    }
-    setCurrentTime(Math.min(currentTime + 30, duration));
-  };
-  
-  const skipBackward = () => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = Math.max(currentTime - 15, 0);
-    }
-    setCurrentTime(Math.max(currentTime - 15, 0));
-  };
-
-  const seekTo = (time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-    }
-    setCurrentTime(time);
-  };
-
-  const setSleep = (minutes: number) => {
-    setSleepTimeLeft(minutes * 60);
-    toast.info(`Sleep-Timer: ${minutes} Minuten`);
-  };
-
-  const formatAudioTime = (seconds: number) => {
-    const hrs = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hrs > 0) {
-      return `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const saveProgress = () => {
-    updateBook(book.id, { progress: (currentTime / duration) * 100 });
-    toast.success('Fortschritt gespeichert!');
-  };
-
-  // Demo mode fallback if no audio file
-  useEffect(() => {
-    if (!audioRef.current && duration === 0) {
-      setDuration(3600); // Demo: 1 hour
-    }
-  }, [duration]);
-
-  // Demo playback simulation
-  useEffect(() => {
-    if (!audioRef.current && isPlaying) {
-      const timer = setInterval(() => {
-        setCurrentTime(t => Math.min(t + 1, duration));
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isPlaying, duration]);
-
-  return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-b from-background to-muted flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between p-4">
-        <Button variant="ghost" onClick={onClose}><ChevronLeft className="w-5 h-5" /></Button>
-        <div className="text-center flex-1">
-          <h2 className="font-semibold truncate">{book.title}</h2>
-          {book.author && <p className="text-sm text-muted-foreground">{book.author}</p>}
-        </div>
-        <Button variant="ghost" onClick={saveProgress}><Bookmark className="w-5 h-5" /></Button>
-      </header>
-
-      {/* Cover */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <motion.div animate={isPlaying ? { scale: [1, 1.02, 1] } : {}} transition={{ repeat: Infinity, duration: 2 }}>
-          <div className="w-64 h-64 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center shadow-2xl">
-            {book.cover ? <img src={book.cover} alt={book.title} className="w-full h-full rounded-2xl object-cover" /> : <Headphones className="w-24 h-24 text-primary/40" />}
-          </div>
-        </motion.div>
-      </div>
-
-      {/* Sleep Timer Display */}
-      {sleepTimeLeft !== null && (
-        <div className="text-center text-sm text-muted-foreground">
-          😴 Sleep-Timer: {formatAudioTime(sleepTimeLeft)}
-          <Button variant="ghost" size="sm" onClick={() => setSleepTimeLeft(null)} className="ml-2">
-            Abbrechen
-          </Button>
-        </div>
-      )}
-
-      {/* Controls */}
-      <div className="p-6 space-y-4">
-        <div className="space-y-2">
-          <Slider 
-            value={[currentTime]} 
-            max={duration || 1} 
-            step={1} 
-            onValueChange={([v]) => seekTo(v)} 
-            className="w-full" 
-          />
-          <div className="flex justify-between text-sm text-muted-foreground">
-            <span>{formatAudioTime(currentTime)}</span>
-            <span>{formatAudioTime(duration)}</span>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-center gap-6">
-          <Button variant="ghost" size="icon" onClick={skipBackward}>
-            <SkipBack className="w-6 h-6" />
-          </Button>
-          <Button size="lg" className="w-16 h-16 rounded-full" onClick={togglePlay}>
-            {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8 ml-1" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={skipForward}>
-            <SkipForward className="w-6 h-6" />
-          </Button>
-        </div>
-
-        {/* Playback Speed */}
-        <div className="flex items-center gap-2 justify-center">
-          <span className="text-xs text-muted-foreground">Speed:</span>
-          {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate) => (
-            <Button 
-              key={rate} 
-              variant={playbackRate === rate ? 'default' : 'outline'} 
-              size="sm" 
-              className="w-12 h-8 text-xs" 
-              onClick={() => setPlaybackRate(rate)}
-            >
-              {rate}x
-            </Button>
-          ))}
-        </div>
-
-        {/* Volume Control */}
-        <div className="flex items-center gap-2 justify-center">
-          <VolumeX className="w-4 h-4 text-muted-foreground" />
-          <Slider 
-            value={[volume * 100]} 
-            max={100} 
-            step={1} 
-            onValueChange={([v]) => setVolume(v / 100)} 
-            className="w-32" 
-          />
-          <Volume2 className="w-4 h-4 text-muted-foreground" />
-        </div>
-
-        {/* Sleep Timer Buttons */}
-        <div className="flex items-center gap-2 justify-center">
-          <span className="text-xs text-muted-foreground mr-2">😴 Sleep:</span>
-          {[5, 15, 30, 60].map((mins) => (
-            <Button 
-              key={mins} 
-              variant="outline" 
-              size="sm" 
-              className="h-7 text-xs" 
-              onClick={() => setSleep(mins)}
-            >
-              {mins}min
-            </Button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };
@@ -9523,7 +9106,7 @@ const ReadingJournalPanel = ({ open, onOpenChange }: { open: boolean; onOpenChan
           <div className="grid grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-3 text-center">
-                <Book className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+                <BookIcon className="w-5 h-5 mx-auto mb-1 text-amber-500" />
                 <p className="text-lg font-bold">{filtered.books.length}</p>
                 <p className="text-xs text-muted-foreground">Bücher</p>
               </CardContent>
@@ -9709,33 +9292,6 @@ const SocialShareCard = ({ open, onOpenChange, highlight }: { open: boolean; onO
 // ============================================================================
 
 const WeeklyDigestPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { books, highlights, readingStats, readingSessions } = useBookStore();
-  const [email, setEmail] = useState('');
-  const [subscribed, setSubscribed] = useState(false);
-  const [sending, setSending] = useState(false);
-
-  // Calculate weekly stats
-  const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-  const weeklySessions = readingSessions.filter(s => s.startTime >= weekAgo);
-  const weeklyHighlights = highlights.filter(h => h.createdAt >= weekAgo);
-  const weeklyPages = weeklySessions.reduce((sum, s) => sum + s.pagesRead, 0);
-  const weeklyMinutes = weeklySessions.reduce((sum, s) => sum + s.duration, 0) / 60;
-
-  const handleSubscribe = () => {
-    if (email.trim()) {
-      setSubscribed(true);
-      toast.success('Wöchentliche Zusammenfassung aktiviert!');
-    }
-  };
-
-  const sendTestDigest = async () => {
-    setSending(true);
-    // Simulate sending digest
-    await new Promise(r => setTimeout(r, 1500));
-    toast.success('Test-E-Mail gesendet!');
-    setSending(false);
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[60vh]">
@@ -9745,84 +9301,11 @@ const WeeklyDigestPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
             Wöchentliche Zusammenfassung
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {/* Weekly Stats Preview */}
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
-            <CardContent className="p-4">
-              <h4 className="font-medium mb-4">Diese Woche im Überblick</h4>
-              <div className="grid grid-cols-4 gap-4">
-                <div className="text-center">
-                  <Book className="w-5 h-5 mx-auto mb-1 text-amber-500" />
-                  <p className="text-lg font-bold">{weeklyPages}</p>
-                  <p className="text-xs text-muted-foreground">Seiten</p>
-                </div>
-                <div className="text-center">
-                  <Clock className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                  <p className="text-lg font-bold">{Math.round(weeklyMinutes)}</p>
-                  <p className="text-xs text-muted-foreground">Minuten</p>
-                </div>
-                <div className="text-center">
-                  <Highlighter className="w-5 h-5 mx-auto mb-1 text-yellow-500" />
-                  <p className="text-lg font-bold">{weeklyHighlights.length}</p>
-                  <p className="text-xs text-muted-foreground">Markierungen</p>
-                </div>
-                <div className="text-center">
-                  <TrendingUp className="w-5 h-5 mx-auto mb-1 text-green-500" />
-                  <p className="text-lg font-bold">{readingStats.currentStreak}</p>
-                  <p className="text-xs text-muted-foreground">Tage Streak</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Email Subscription */}
-          {!subscribed ? (
-            <Card>
-              <CardContent className="p-4 space-y-3">
-                <h4 className="font-medium">E-Mail-Benachrichtigung einrichten</h4>
-                <p className="text-sm text-muted-foreground">
-                  Erhalten Sie jede Woche eine Zusammenfassung Ihrer Leseaktivität.
-                </p>
-                <div className="flex gap-2">
-                  <Input 
-                    type="email" 
-                    placeholder="ihre@email.de" 
-                    value={email} 
-                    onChange={(e) => setEmail(e.target.value)} 
-                  />
-                  <Button onClick={handleSubscribe}>Anmelden</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="border-green-500 bg-green-50 dark:bg-green-900/20">
-              <CardContent className="p-4 flex items-center gap-3">
-                <CheckCircle className="w-5 h-5 text-green-500" />
-                <div>
-                  <h4 className="font-medium">Aktiviert!</h4>
-                  <p className="text-sm text-muted-foreground">Sie erhalten die Zusammenfassung jeden Sonntag.</p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Digest Preview */}
-          <Card>
-            <CardContent className="p-4 space-y-3">
-              <h4 className="font-medium">Inhalt der Zusammenfassung:</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Gelesene Seiten und Zeit</li>
-                <li>• Wichtigste Markierungen der Woche</li>
-                <li>• Lese-Fortschritt bei aktuellen Büchern</li>
-                <li>• Motivierende Statistiken</li>
-                <li>• Lese-Empfehlungen</li>
-              </ul>
-              <Button variant="outline" onClick={sendTestDigest} disabled={sending} className="w-full">
-                {sending ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Mail className="w-4 h-4 mr-2" />}
-                Test-E-Mail senden
-              </Button>
-            </CardContent>
-          </Card>
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Der Wöchentliche Digest per E-Mail ist noch nicht implementiert: Es existiert kein Mail-Versand im Backend. Der frühere „Test-E-Mail senden“-Button zeigte nach 1,5 Sekunden nur eine Schein-Erfolgs-Meldung, ohne dass eine E-Mail verschickt wurde. Die wöchentlichen Lese-Statistiken sind jederzeit unter „Statistiken“ einsehbar."
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -9834,38 +9317,6 @@ const WeeklyDigestPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
 // ============================================================================
 
 const CalibreConnectPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { addBook } = useBookStore();
-  const [connected, setConnected] = useState(false);
-  const [connecting, setConnecting] = useState(false);
-  const [serverUrl, setServerUrl] = useState('');
-  const [calibreBooks, setCalibreBooks] = useState<any[]>([]);
-
-  const handleConnect = async () => {
-    setConnecting(true);
-    // Simulate connection
-    await new Promise(r => setTimeout(r, 1500));
-    setConnected(true);
-    // Mock calibre library
-    setCalibreBooks([
-      { id: 1, title: 'Der Prozess', author: 'Franz Kafka', format: 'EPUB', size: '1.2 MB' },
-      { id: 2, title: 'Die Verwandlung', author: 'Franz Kafka', format: 'EPUB', size: '0.8 MB' },
-      { id: 3, title: 'Steppenwolf', author: 'Hermann Hesse', format: 'PDF', size: '3.5 MB' },
-    ]);
-    setConnecting(false);
-    toast.success('Mit Calibre verbunden!');
-  };
-
-  const importBook = (book: any) => {
-    addBook({
-      title: book.title,
-      author: book.author,
-      format: book.format.toLowerCase(),
-      file: 'calibre-import',
-      fileSize: parseFloat(book.size) * 1024 * 1024,
-    });
-    toast.success(`"${book.title}" importiert!`);
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[70vh]">
@@ -9875,63 +9326,11 @@ const CalibreConnectPanel = ({ open, onOpenChange }: { open: boolean; onOpenChan
             Calibre-Sync
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {!connected ? (
-            <Card>
-              <CardContent className="p-4 space-y-4">
-                <div className="flex items-center gap-3">
-                  <Database className="w-8 h-8 text-orange-500" />
-                  <div>
-                    <h4 className="font-medium">Calibre Content Server</h4>
-                    <p className="text-sm text-muted-foreground">Verbinden Sie Ihre Calibre-Bibliothek</p>
-                  </div>
-                </div>
-                <Input 
-                  placeholder="http://localhost:8080" 
-                  value={serverUrl} 
-                  onChange={(e) => setServerUrl(e.target.value)} 
-                />
-                <Button onClick={handleConnect} disabled={connecting} className="w-full">
-                  {connecting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Link2 className="w-4 h-4 mr-2" />}
-                  {connecting ? 'Verbinde...' : 'Verbinden'}
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span className="text-sm font-medium">Verbunden</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setConnected(false)}>
-                  Trennen
-                </Button>
-              </div>
-
-              <ScrollArea className="h-[300px]">
-                <div className="space-y-2">
-                  {calibreBooks.map((book) => (
-                    <Card key={book.id}>
-                      <CardContent className="p-3 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <BookOpen className="w-5 h-5 text-muted-foreground" />
-                          <div>
-                            <h4 className="font-medium text-sm">{book.title}</h4>
-                            <p className="text-xs text-muted-foreground">{book.author} • {book.format}</p>
-                          </div>
-                        </div>
-                        <Button size="sm" variant="outline" onClick={() => importBook(book)}>
-                          <Download className="w-4 h-4 mr-1" />
-                          Import
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </ScrollArea>
-            </>
-          )}
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Die Calibre-Synchronisation ist noch nicht implementiert: Es gibt keine Verbindung zum Calibre-Content-Server (XML-RPC/OPDS). Die hier früher angezeigte Bibliothek bestand aus festen Beispiel-Büchern, ein „Import“ fügte leere Platzhalter-Einträge ohne echten Dateiinhalt hinzu. Bücher lassen sich weiterhin manuell über „+“ (Datei auswählen) importieren."
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -9943,83 +9342,20 @@ const CalibreConnectPanel = ({ open, onOpenChange }: { open: boolean; onOpenChan
 // ============================================================================
 
 const GoodreadsPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { books, rateBook } = useBookStore();
-  const [connected, setConnected] = useState(false);
-
-  const handleSync = () => {
-    toast.success('Bewertungen mit Goodreads synchronisiert!');
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[60vh]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Book className="w-5 h-5 text-amber-600" />
+            <BookIcon className="w-5 h-5 text-amber-600" />
             Goodreads-Sync
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {!connected ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Book className="w-12 h-12 mx-auto mb-4 text-amber-600" />
-                <h4 className="font-medium mb-2">Mit Goodreads verbinden</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Synchronisieren Sie Ihre Bewertungen und Leselisten mit Goodreads.
-                </p>
-                <Button onClick={() => { setConnected(true); toast.success('Verbunden!'); }}>
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Verbinden
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span className="text-sm font-medium">Mit Goodreads verbunden</span>
-                </div>
-              </div>
-
-              <Card>
-                <CardContent className="p-4 space-y-3">
-                  <h4 className="font-medium">Synchronisierung</h4>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Button variant="outline" onClick={handleSync}>
-                      <Download className="w-4 h-4 mr-2" />
-                      Bewertungen importieren
-                    </Button>
-                    <Button variant="outline" onClick={handleSync}>
-                      <Upload className="w-4 h-4 mr-2" />
-                      Bewertungen exportieren
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-3">Zu synchronisierende Bücher</h4>
-                  <ScrollArea className="h-40">
-                    <div className="space-y-2">
-                      {books.filter(b => b.rating).slice(0, 5).map((book) => (
-                        <div key={book.id} className="flex items-center justify-between p-2 bg-muted rounded">
-                          <span className="text-sm truncate flex-1">{book.title}</span>
-                          <div className="flex">
-                            {[...Array(book.rating || 0)].map((_, i) => (
-                              <Star key={i} className="w-3 h-3 text-yellow-400 fill-yellow-400" />
-                            ))}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </>
-          )}
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Die Goodreads-Synchronisation ist noch nicht implementiert: Es gibt keine Goodreads-API-Anbindung und keine OAuth-Anmeldung. Der frühere „Verbinden“-Button erzeugte nur eine Schein-Verbindung ohne Datenübertragung. Bewertungen und Lesestatus können weiterhin lokal in der Bibliothek gepflegt werden."
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -10031,33 +9367,6 @@ const GoodreadsPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (
 // ============================================================================
 
 const PocketImportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { addWebArticle } = useBookStore();
-  const [service, setService] = useState<'pocket' | 'instapaper'>('pocket');
-  const [connected, setConnected] = useState(false);
-  const [articles, setArticles] = useState<any[]>([]);
-
-  const handleConnect = async () => {
-    // Simulate connection
-    await new Promise(r => setTimeout(r, 1000));
-    setConnected(true);
-    setArticles([
-      { id: 1, title: 'The Future of AI', url: 'https://example.com/ai', source: 'Medium' },
-      { id: 2, title: 'Deep Learning Basics', url: 'https://example.com/dl', source: 'Blog' },
-      { id: 3, title: 'Web Development Trends 2024', url: 'https://example.com/web', source: 'Dev.to' },
-    ]);
-    toast.success(`Mit ${service === 'pocket' ? 'Pocket' : 'Instapaper'} verbunden!`);
-  };
-
-  const importArticle = (article: any) => {
-    addWebArticle({
-      title: article.title,
-      url: article.url,
-      content: '',
-      source: article.source,
-    });
-    toast.success(`"${article.title}" gespeichert!`);
-  };
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[60vh]">
@@ -10067,61 +9376,11 @@ const PocketImportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
             Artikel speichern
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          <div className="flex gap-2">
-            <Button 
-              variant={service === 'pocket' ? 'default' : 'outline'} 
-              onClick={() => setService('pocket')}
-              className="flex-1"
-            >
-              Pocket
-            </Button>
-            <Button 
-              variant={service === 'instapaper' ? 'default' : 'outline'} 
-              onClick={() => setService('instapaper')}
-              className="flex-1"
-            >
-              Instapaper
-            </Button>
-          </div>
-
-          {!connected ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Save className="w-12 h-12 mx-auto mb-4 text-red-500" />
-                <h4 className="font-medium mb-2">Mit {service === 'pocket' ? 'Pocket' : 'Instapaper'} verbinden</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Importieren Sie gespeicherte Artikel zum Lesen.
-                </p>
-                <Button onClick={handleConnect}>
-                  <Link2 className="w-4 h-4 mr-2" />
-                  Verbinden
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <ScrollArea className="h-[250px]">
-              <div className="space-y-2">
-                {articles.map((article) => (
-                  <Card key={article.id}>
-                    <CardContent className="p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <Newspaper className="w-5 h-5 text-muted-foreground" />
-                        <div>
-                          <h4 className="font-medium text-sm">{article.title}</h4>
-                          <p className="text-xs text-muted-foreground">{article.source}</p>
-                        </div>
-                      </div>
-                      <Button size="sm" variant="outline" onClick={() => importArticle(article)}>
-                        <Download className="w-4 h-4 mr-1" />
-                        Import
-                      </Button>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </ScrollArea>
-          )}
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Der Import von Pocket- bzw. Instapaper-Artikeln ist noch nicht implementiert: Es existiert keine API-Anbindung zu diesen Diensten. Die hier früher gelisteten Artikel waren feste Beispiel-Daten ohne echte Quelle. Einzelne Web-Artikel lassen sich bereits manuell über „Web-Artikel“ speichern."
+          />
         </div>
       </SheetContent>
     </Sheet>
@@ -10265,7 +9524,7 @@ const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
       <SheetContent side="bottom" className="h-[85vh]">
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
-            <Book className="w-5 h-5 text-blue-500" />
+            <BookIcon className="w-5 h-5 text-blue-500" />
             Onleihe - Digitale Bibliothek
           </SheetTitle>
         </SheetHeader>
@@ -10274,7 +9533,7 @@ const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
         <div className="flex gap-2 mt-4 p-1 bg-muted rounded-lg">
           {[
             { id: 'search', label: 'Suche', icon: Search },
-            { id: 'borrowed', label: 'Ausgeliehen', icon: Book, badge: borrowedBooks.length },
+            { id: 'borrowed', label: 'Ausgeliehen', icon: BookIcon, badge: borrowedBooks.length },
             { id: 'wishlist', label: 'Wunschliste', icon: Heart },
           ].map((tab) => (
             <button
@@ -10384,7 +9643,7 @@ const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
                           <img src={book.cover} alt={book.title} className="w-16 h-24 object-cover rounded" />
                         ) : (
                           <div className="w-16 h-24 bg-muted rounded flex items-center justify-center">
-                            <Book className="w-8 h-8 text-muted-foreground" />
+                            <BookIcon className="w-8 h-8 text-muted-foreground" />
                           </div>
                         )}
                         <div className="flex-1">
@@ -10463,7 +9722,7 @@ const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
               {/* Borrowed books list */}
               {borrowedBooks.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
-                  <Book className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <BookIcon className="w-12 h-12 mx-auto mb-2 opacity-50" />
                   <p>Keine ausgeliehenen Bücher</p>
                   <p className="text-xs">Fügen Sie Ihre ausgeliehenen Bücher hinzu, um Rückgabefristen zu verwalten.</p>
                 </div>
@@ -10542,20 +9801,18 @@ const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (op
 
 const NotionExportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const { notes, highlights, books } = useBookStore();
-  const [target, setTarget] = useState<'notion' | 'obsidian' | 'markdown'>('markdown');
   const [exporting, setExporting] = useState(false);
   const [selectedBook, setSelectedBook] = useState<string>('all');
 
   const handleExport = async () => {
     setExporting(true);
-    
+
     const filteredNotes = selectedBook === 'all' ? notes : notes.filter(n => n.bookId === selectedBook);
     const filteredHighlights = selectedBook === 'all' ? highlights : highlights.filter(h => h.bookId === selectedBook);
 
-    // Generate markdown content
+    // Markdown-Inhalt erzeugen (funktioniert vollständig lokal)
     let markdown = `# eBook Reader Export\n\n`;
     markdown += `**Exportiert am:** ${new Date().toLocaleDateString('de-DE')}\n\n`;
-    
     markdown += `## Notizen\n\n`;
     filteredNotes.forEach(note => {
       const book = books.find(b => b.id === note.bookId);
@@ -10563,7 +9820,6 @@ const NotionExportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
       if (book) markdown += `*Buch: ${book.title}*\n\n`;
       markdown += `${note.content}\n\n---\n\n`;
     });
-
     markdown += `## Markierungen\n\n`;
     filteredHighlights.forEach(h => {
       const book = books.find(b => b.id === h.bookId);
@@ -10583,7 +9839,7 @@ const NotionExportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
     URL.revokeObjectURL(url);
 
     setExporting(false);
-    toast.success('Export erfolgreich!');
+    toast.success('Markdown-Export heruntergeladen');
   };
 
   return (
@@ -10595,64 +9851,37 @@ const NotionExportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
             Notizen exportieren
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {/* Target Selection */}
-          <div className="grid grid-cols-3 gap-3">
-            {[
-              { id: 'notion', label: 'Notion', icon: <Layers className="w-5 h-5" /> },
-              { id: 'obsidian', label: 'Obsidian', icon: <FileText className="w-5 h-5" /> },
-              { id: 'markdown', label: 'Markdown', icon: <FileTextIcon className="w-5 h-5" /> },
-            ].map((t) => (
-              <Card 
-                key={t.id}
-                className={`cursor-pointer transition-all ${target === t.id ? 'ring-2 ring-primary' : ''}`}
-                onClick={() => setTarget(t.id as typeof target)}
-              >
-                <CardContent className="p-4 text-center">
-                  <div className="flex justify-center mb-2">{t.icon}</div>
-                  <h4 className="font-medium text-sm">{t.label}</h4>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Book Filter */}
-          <div className="space-y-2">
-            <Label>Buch auswählen</Label>
-            <select 
-              value={selectedBook}
-              onChange={(e) => setSelectedBook(e.target.value)}
-              className="w-full p-2 border rounded-lg bg-background"
-            >
-              <option value="all">Alle Bücher</option>
-              {books.map(b => (
-                <option key={b.id} value={b.id}>{b.title}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <Card>
-              <CardContent className="p-3 text-center">
-                <Edit3 className="w-5 h-5 mx-auto mb-1 text-blue-500" />
-                <p className="text-lg font-bold">{selectedBook === 'all' ? notes.length : notes.filter(n => n.bookId === selectedBook).length}</p>
-                <p className="text-xs text-muted-foreground">Notizen</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-3 text-center">
-                <Highlighter className="w-5 h-5 mx-auto mb-1 text-yellow-500" />
-                <p className="text-lg font-bold">{selectedBook === 'all' ? highlights.length : highlights.filter(h => h.bookId === selectedBook).length}</p>
-                <p className="text-xs text-muted-foreground">Markierungen</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Button onClick={handleExport} disabled={exporting} className="w-full">
-            {exporting ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            Exportieren
-          </Button>
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion: Notion & Obsidian"
+            description="Der direkte Export nach Notion oder Obsidian (inkl. API-Anbindung) ist noch nicht implementiert. Verfügbar ist der lokale Markdown-Export: Die Datei lässt sich danach manuell in Notion/Obsidian importieren."
+          />
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <FileTextIcon className="w-4 h-4 text-purple-500" />
+                <p className="text-sm font-medium">Markdown-Export (funktioniert)</p>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Alle Notizen und Markierungen des ausgewählten Buchs werden als Markdown-Datei heruntergeladen.
+              </p>
+              <div className="space-y-2 mb-4">
+                <Label>Buch auswählen</Label>
+                <select
+                  value={selectedBook}
+                  onChange={(e) => setSelectedBook(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="all">Alle Bücher</option>
+                  {books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}
+                </select>
+              </div>
+              <Button onClick={handleExport} disabled={exporting} className="w-full">
+                {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                {exporting ? 'Exportiere…' : 'Markdown herunterladen'}
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       </SheetContent>
     </Sheet>
@@ -10663,41 +9892,7 @@ const NotionExportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
 // SPOTIFY INTEGRATION PANEL - Feature 18
 // ============================================================================
 
-const SpotifyPanel = ({ open, onOpenChange, mood }: { open: boolean; onOpenChange: (open: boolean) => void; mood?: string }) => {
-  const [connected, setConnected] = useState(false);
-  const [playing, setPlaying] = useState(false);
-
-  // Mock playlists based on mood
-  const playlists: Record<string, { name: string; tracks: number; image: string }[]> = {
-    happy: [
-      { name: 'Gute Laune Mix', tracks: 25, image: '🎵' },
-      { name: 'Sommer Hits', tracks: 40, image: '🌞' },
-    ],
-    sad: [
-      { name: 'Melancholie', tracks: 30, image: '🌧️' },
-      { name: 'Klavier & Streicher', tracks: 20, image: '🎹' },
-    ],
-    exciting: [
-      { name: 'Epic Reading', tracks: 35, image: '⚔️' },
-      { name: 'Adventure Soundtrack', tracks: 45, image: '🏔️' },
-    ],
-    calm: [
-      { name: 'Lese-Fokus', tracks: 50, image: '📚' },
-      { name: 'Ambient', tracks: 60, image: '🌌' },
-    ],
-    romantic: [
-      { name: 'Romantische Klassiker', tracks: 28, image: '💕' },
-      { name: 'Love Songs', tracks: 33, image: '💗' },
-    ],
-    mysterious: [
-      { name: 'Dark Ambient', tracks: 25, image: '🌑' },
-      { name: 'Mystery Soundtrack', tracks: 30, image: '🔮' },
-    ],
-  };
-
-  const currentMood = mood || 'calm';
-  const suggestedPlaylists = playlists[currentMood] || playlists.calm;
-
+const SpotifyPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side="bottom" className="h-[60vh]">
@@ -10707,65 +9902,20 @@ const SpotifyPanel = ({ open, onOpenChange, mood }: { open: boolean; onOpenChang
             Spotify
           </SheetTitle>
         </SheetHeader>
-        <div className="mt-6 space-y-6">
-          {!connected ? (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <Music className="w-12 h-12 mx-auto mb-4 text-green-500" />
-                <h4 className="font-medium mb-2">Mit Spotify verbinden</h4>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Passende Musik zu Ihrer Stimmung beim Lesen.
-                </p>
-                <Button onClick={() => { setConnected(true); toast.success('Verbunden!'); }}>
-                  <Music className="w-4 h-4 mr-2" />
-                  Mit Spotify verbinden
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <>
-              <div className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-500" />
-                  <span className="text-sm font-medium">Verbunden</span>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setPlaying(!playing)}>
-                  {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
-                </Button>
-              </div>
-
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-3 flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-500" />
-                    Empfohlen für "{currentMood}" Stimmung
-                  </h4>
-                  <div className="space-y-2">
-                    {suggestedPlaylists.map((playlist, i) => (
-                      <div key={i} className="flex items-center gap-3 p-2 bg-muted rounded-lg">
-                        <span className="text-2xl">{playlist.image}</span>
-                        <div className="flex-1">
-                          <h5 className="font-medium text-sm">{playlist.name}</h5>
-                          <p className="text-xs text-muted-foreground">{playlist.tracks} Titel</p>
-                        </div>
-                        <Button size="sm" variant="ghost" onClick={() => toast.success(`"${playlist.name}" wird abgespielt`)}>
-                          <Play className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-
-              <div className="grid grid-cols-3 gap-2">
-                {Object.entries(playlists).slice(0, 6).map(([moodKey, [playlist]]) => (
-                  <Button key={moodKey} variant="outline" size="sm" className="capitalize">
-                    {moodKey}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
+        <div className="mt-6 space-y-4">
+          <FutureFeatureNotice
+            title="Geplante Funktion"
+            description="Die Spotify-Integration ist noch nicht implementiert: Es gibt keine Spotify-Web-API-Anbindung und keine OAuth-Anmeldung. Die hier früher gezeigten Playlists waren feste Beispiel-Daten ohne echte Verbindung zu Spotify. Ambient-Geräusche (Regen, Café, Wald …) funktionieren dagegen bereits über „Ambient“ in den Einstellungen."
+          />
+          <Card>
+            <CardContent className="p-4 space-y-2">
+              <p className="text-sm font-medium">Was bereits funktioniert</p>
+              <ul className="text-sm text-muted-foreground list-disc list-inside space-y-1">
+                <li>Ambient-Geräusche zum Lesen (Einstellungen → Audio &amp; KI → Ambient)</li>
+                <li>Sprachausgabe (TTS) im Reader</li>
+              </ul>
+            </CardContent>
+          </Card>
         </div>
       </SheetContent>
     </Sheet>
@@ -10899,7 +10049,7 @@ const PrivacyDashboard = ({ open, onOpenChange }: { open: boolean; onOpenChange:
                 </h4>
                 <div className="grid grid-cols-4 gap-3">
                   <div className="text-center">
-                    <Book className="w-5 h-5 mx-auto mb-1 text-amber-500" />
+                    <BookIcon className="w-5 h-5 mx-auto mb-1 text-amber-500" />
                     <p className="text-lg font-bold">{books.length}</p>
                     <p className="text-xs text-muted-foreground">Bücher</p>
                   </div>
@@ -11118,116 +10268,6 @@ const ExportImportPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange
 };
 
 // ============================================================================
-// BUDDY READING PANEL
-// ============================================================================
-
-const BuddyReadingPanel = ({ book, open, onOpenChange }: { book: Book; open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const [sessions, setSessions] = useState<{id: string; host: string; participants: string[]; currentPage: number; startedAt: number}[]>([]);
-  const [isHosting, setIsHosting] = useState(false);
-  const [sessionCode, setSessionCode] = useState('');
-
-  const createSession = () => {
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    setSessionCode(code);
-    setIsHosting(true);
-    setSessions([...sessions, {
-      id: code,
-      host: 'Du',
-      participants: ['Du'],
-      currentPage: 1,
-      startedAt: Date.now()
-    }]);
-    toast.success('Buddy-Reading Session erstellt! Teile den Code: ' + code);
-  };
-
-  const joinSession = () => {
-    if (sessionCode.length === 6) {
-      toast.success('Session beigetreten!');
-      onOpenChange(false);
-    }
-  };
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[70vh]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Users2 className="w-5 h-5 text-primary" />
-            Buddy Reading
-          </SheetTitle>
-        </SheetHeader>
-        <div className="mt-6 space-y-6">
-          <p className="text-muted-foreground text-sm">
-            Lese gemeinsam mit Freunden das gleiche Buch. Seht euren Fortschritt in Echtzeit!
-          </p>
-
-          {!isHosting ? (
-            <>
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-2">Neue Session starten</h4>
-                  <p className="text-sm text-muted-foreground mb-4">Erstelle eine Session und lade Freunde mit dem Code ein.</p>
-                  <Button onClick={createSession} className="w-full">
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Session erstellen
-                  </Button>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <h4 className="font-medium mb-2">Session beitreten</h4>
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Session-Code eingeben..."
-                      value={sessionCode}
-                      onChange={(e) => setSessionCode(e.target.value.toUpperCase())}
-                      maxLength={6}
-                      className="uppercase"
-                    />
-                    <Button onClick={joinSession} disabled={sessionCode.length !== 6}>
-                      Beitreten
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </>
-          ) : (
-            <Card>
-              <CardContent className="p-6 text-center">
-                <div className="text-4xl font-mono font-bold text-primary mb-4 tracking-widest">
-                  {sessionCode}
-                </div>
-                <p className="text-muted-foreground mb-4">
-                  Teile diesen Code mit deinen Freunden
-                </p>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(sessionCode);
-                    toast.success('Code kopiert!');
-                  }}
-                >
-                  <Copy className="w-4 h-4 mr-2" />
-                  Code kopieren
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          <div className="flex items-center gap-4 justify-center text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-sm">Live-Sync aktiv</span>
-            </div>
-          </div>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-};
-
-// ============================================================================
 // PODCAST MODE PANEL
 // ============================================================================
 
@@ -11297,6 +10337,13 @@ const PodcastModePanel = ({ book, bookContent, open, onOpenChange }: { book: Boo
             Wandle dein Buch in einen Podcast um! Perfekt zum Hören während du unterwegs bist.
           </p>
 
+          {!bookContent && (
+            <FutureFeatureNotice
+              title="Nur für Textformate verfügbar"
+              description="Der Podcast-Modus benötigt den extrahierten Textinhalt des Buchs. Für EPUB-, PDF- und Comic-Bücher ist die Textextraktion eine geplante Funktion – der Generator kann für dieses Buch kein Skript erzeugen."
+            />
+          )}
+
           {!podcastScript ? (
             <Card>
               <CardContent className="p-6 text-center">
@@ -11305,7 +10352,7 @@ const PodcastModePanel = ({ book, bookContent, open, onOpenChange }: { book: Boo
                 <p className="text-sm text-muted-foreground mb-4">
                   KI generiert eine Podcast-Version deines Buches
                 </p>
-                <Button onClick={generatePodcast} disabled={isGenerating} className="w-full">
+                <Button onClick={generatePodcast} disabled={isGenerating || !bookContent} className="w-full">
                   {isGenerating ? (
                     <>
                       <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
@@ -11357,202 +10404,6 @@ const PodcastModePanel = ({ book, bookContent, open, onOpenChange }: { book: Boo
   );
 };
 
-// ============================================================================
-// READING ADVENT CALENDAR
-// ============================================================================
-
-const AdventCalendarPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { books, readingStats } = useBookStore();
-  const today = new Date();
-  const currentDay = today.getDate();
-  const currentMonth = today.getMonth();
-
-  // Only show in December
-  const isDecember = currentMonth === 11;
-
-  const doors = Array.from({ length: 24 }, (_, i) => ({
-    day: i + 1,
-    opened: i + 1 < currentDay || (i + 1 === currentDay && isDecember),
-    reward: [
-      '📚 Neues Theme freigeschaltet!',
-      '⭐ +50 XP Bonus',
-      '🎵 Neuer Ambient Sound',
-      '📖 Kostenloses Gutenberg-Buch',
-      '🎨 Custom Font freigeschaltet',
-      '🏆 Achievement: Advent-Leser',
-      '💝 Lese-Postkarten freigeschaltet',
-      '🌙 Nacht-Modus Pro',
-      '🎧 Hörbuch-Speed Boost',
-      '📖 Double XP Tag!',
-    ][i % 10]
-  }));
-
-  const handleOpenDoor = (day: number) => {
-    if (day === currentDay && isDecember) {
-      toast.success(`Türchen ${day} geöffnet! ${doors[day-1].reward}`);
-    }
-  };
-
-  if (!isDecember) {
-    return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent side="bottom" className="h-[60vh]">
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-primary" />
-              Lese-Adventskalender
-            </SheetTitle>
-          </SheetHeader>
-          <div className="mt-6 text-center">
-            <Calendar className="w-24 h-24 mx-auto text-muted-foreground/30 mb-4" />
-            <h3 className="text-xl font-semibold mb-2">Bis Dezember geduld...</h3>
-            <p className="text-muted-foreground">
-              Der Adventskalender ist nur im Dezember verfügbar. 
-              Dann gibt es jeden Tag eine Überraschung!
-            </p>
-          </div>
-        </SheetContent>
-      </Sheet>
-    );
-  }
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[85vh]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" />
-            Lese-Adventskalender 🎄
-          </SheetTitle>
-        </SheetHeader>
-        <ScrollArea className="h-[calc(100%-80px)] mt-4">
-          <div className="grid grid-cols-4 gap-3">
-            {doors.map((door) => (
-              <motion.div
-                key={door.day}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <Card
-                  className={`cursor-pointer aspect-square ${
-                    door.opened
-                      ? 'bg-gradient-to-br from-green-500/20 to-red-500/20 border-green-500/50'
-                      : 'bg-gradient-to-br from-red-600 to-green-700'
-                  }`}
-                  onClick={() => handleOpenDoor(door.day)}
-                >
-                  <CardContent className="p-2 h-full flex flex-col items-center justify-center text-center">
-                    {door.opened ? (
-                      <>
-                        <span className="text-2xl mb-1">
-                          {['🎁', '⭐', '📚', '🎄', '❄️', '🎵', '📖', '✨'][door.day % 8]}
-                        </span>
-                        <span className="text-xs font-bold">{door.day}</span>
-                        <span className="text-[10px] text-muted-foreground mt-1 line-clamp-2">
-                          {door.reward}
-                        </span>
-                      </>
-                    ) : (
-                      <span className="text-3xl font-bold text-white">{door.day}</span>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </div>
-
-          <Card className="mt-6">
-            <CardContent className="p-4">
-              <h4 className="font-medium mb-2">Deine Dezember-Statistik</h4>
-              <div className="grid grid-cols-3 gap-4 text-center">
-                <div>
-                  <p className="text-2xl font-bold text-primary">{readingStats.currentStreak}</p>
-                  <p className="text-xs text-muted-foreground">Tage in Folge</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-primary">{doors.filter(d => d.opened).length}</p>
-                  <p className="text-xs text-muted-foreground">Türchen</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-primary">{books.length}</p>
-                  <p className="text-xs text-muted-foreground">Bücher</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
-  );
-};
-
-// ============================================================================
-// READING CHALLENGES BATTLE
-// ============================================================================
-
-const ChallengeBattlePanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const { challenges, readingStats } = useBookStore();
-
-  const activeBattles = [
-    { id: '1', name: 'Seiten-Marathon', target: 100, current: 67, unit: 'Seiten', opponent: 'Team Alpha', deadline: Date.now() + 86400000 },
-    { id: '2', name: 'Lese-Streak', target: 7, current: readingStats.currentStreak, unit: 'Tage', opponent: 'Bücherwürmer', deadline: Date.now() + 604800000 },
-  ];
-
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="bottom" className="h-[70vh]">
-        <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <Swords className="w-5 h-5 text-primary" />
-            Lese-Challenge Battles
-          </SheetTitle>
-        </SheetHeader>
-        <div className="mt-6 space-y-4">
-          {activeBattles.map((battle) => {
-            const progress = (battle.current / battle.target) * 100;
-            const timeLeft = Math.max(0, Math.floor((battle.deadline - Date.now()) / 3600000));
-
-            return (
-              <Card key={battle.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h4 className="font-medium">{battle.name}</h4>
-                      <p className="text-xs text-muted-foreground">gegen {battle.opponent}</p>
-                    </div>
-                    <Badge variant="outline">
-                      ⏰ {timeLeft}h verbleibend
-                    </Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Du: {battle.current} {battle.unit}</span>
-                      <span>Ziel: {battle.target} {battle.unit}</span>
-                    </div>
-                    <Progress value={progress} className="h-3" />
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-
-          <Card className="border-dashed">
-            <CardContent className="p-6 text-center">
-              <Swords className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-              <p className="text-muted-foreground mb-3">
-                Fordere Freunde zu Lese-Challenges heraus!
-              </p>
-              <Button>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Neue Challenge starten
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </SheetContent>
-    </Sheet>
-  );
-};
 
 // ============================================================================
 // MAIN APP
@@ -11563,8 +10414,26 @@ export default function Page() {
   const { currentBook, setCurrentBook, updateProgress, settings } = useBookStore();
   const [showSettings, setShowSettings] = useState(false);
   const [showExportImport, setShowExportImport] = useState(false);
+  // Datei-Hydratation aus IndexedDB: Bücher erst öffnen, wenn Inhalte geladen sind
+  const [filesReady, setFilesReady] = useState(false);
 
-  const handleOpenBook = (book: Book) => { setCurrentBook(book); setView('reader'); };
+  useEffect(() => {
+    // initFileStorage läuft zusätzlich zum persist-Rehydratisieren (idempotent):
+    // Bücher ohne Dateiinhalt werden aus IndexedDB nachgeladen.
+    void initFileStorage().finally(() => setFilesReady(true));
+  }, []);
+
+  const handleOpenBook = (book: Book) => {
+    if (!filesReady) {
+      toast.info('Buchdateien werden noch geladen – bitte kurz warten.');
+      return;
+    }
+    // Frisches Objekt aus dem Store holen: Datei-Inhalte werden per IndexedDB
+    // asynchron hydratisiert, das übergebene Objekt kann noch ohne Inhalt sein.
+    const fresh = useBookStore.getState().books.find(b => b.id === book.id) ?? book;
+    setCurrentBook(fresh);
+    setView('reader');
+  };
   const handleCloseReader = () => { setCurrentBook(null); setView('library'); };
   const handleProgress = (progress: number, location: string, page?: number) => { if (currentBook) updateProgress(currentBook.id, progress, location, page); };
 
@@ -11577,6 +10446,21 @@ export default function Page() {
   return (
     <main className={`min-h-screen ${settings.theme === 'sepia' ? 'bg-amber-50 text-amber-900' : ''}`}>
       {settings.dyslexiaFont && <style jsx global>{dyslexiaFontStyle}</style>}
+      {IS_STATIC_BUILD && (
+        <div
+          role="note"
+          className="border-b border-amber-500/40 bg-amber-50 dark:bg-amber-950/20 px-4 py-2 text-xs text-amber-900 dark:text-amber-200"
+        >
+          <div className="mx-auto flex max-w-3xl items-start gap-2">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" aria-hidden />
+            <p>
+              Statische Version (ohne Server): KI-Funktionen (Zusammenfassung, Übersetzung,
+              Quiz, Auto-Tagging, Chat) und RSS-Artikel-Abruf benötigen die Server-Version
+              der App. Bibliothek und Reader funktionieren vollständig lokal.
+            </p>
+          </div>
+        </div>
+      )}
       <AnimatePresence mode="wait">
         {view === 'library' ? (
           <motion.div key="library" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -11592,7 +10476,7 @@ export default function Page() {
               <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6">
                 <Card className="max-w-md">
                   <CardContent className="p-6 text-center">
-                    <Book className="w-16 h-16 mx-auto text-orange-500 mb-4" />
+                    <BookIcon className="w-16 h-16 mx-auto text-orange-500 mb-4" />
                     <h2 className="text-xl font-semibold mb-2">{currentBook.format.toUpperCase()} Format</h2>
                     <p className="text-muted-foreground mb-4">
                       {currentBook.format === 'azw3' ? 'Kindle AZW3-Format' : 'Mobipocket-Format'} wird als Text angezeigt.
@@ -11607,7 +10491,7 @@ export default function Page() {
               <div className="fixed inset-0 z-50 bg-background flex items-center justify-center p-6">
                 <Card className="max-w-md">
                   <CardContent className="p-6 text-center">
-                    <File className="w-16 h-16 mx-auto text-amber-600 mb-4" />
+                    <FileIcon className="w-16 h-16 mx-auto text-amber-600 mb-4" />
                     <h2 className="text-xl font-semibold mb-2">DJVU Format</h2>
                     <p className="text-muted-foreground mb-4">
                       DJVU ist ein spezielles Dokumentenformat mit hoher Kompression. 

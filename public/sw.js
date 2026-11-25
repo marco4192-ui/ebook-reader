@@ -4,13 +4,17 @@ const CACHE_NAME = 'ebook-reader-v1';
 const STATIC_CACHE = 'ebook-static-v1';
 const DYNAMIC_CACHE = 'ebook-dynamic-v1';
 
-// Files to cache immediately
+// Files to cache immediately.
+// WICHTIG: relative Pfade – der Service Worker liegt bei Sub-Pfad-Hosting
+// (GitHub Pages: https://user.github.io/repo/) in /repo/sw.js, sein Scope ist
+// /repo/. Absolute Pfade wie '/manifest.json' würden auf den Domain-Root
+// auflösen und 404 liefern.
 const STATIC_FILES = [
-  '/',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-1024.png'
+  './',
+  './manifest.json',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-1024.png'
 ];
 
 // Install event - cache static files
@@ -78,7 +82,7 @@ self.addEventListener('fetch', (event) => {
         })
         .catch(() => {
           return caches.match(request).then((response) => {
-            return response || caches.match('/');
+            return response || caches.match('./');
           });
         })
     );
@@ -127,11 +131,11 @@ self.addEventListener('push', (event) => {
   
   const options = {
     body: data.body || 'Neues Update verfügbar!',
-    icon: '/icon-192.png',
-    badge: '/icon-96.png',
+    icon: 'icon-192.png',
+    badge: 'icon-96.png',
     vibrate: [100, 50, 100],
     data: {
-      url: data.url || '/'
+      url: data.url || './'
     },
     actions: [
       { action: 'open', title: 'Öffnen' },
@@ -152,7 +156,7 @@ self.addEventListener('notificationclick', (event) => {
     return;
   }
 
-  const url = event.notification.data?.url || '/';
+  const url = event.notification.data?.url || './';
   
   event.waitUntil(
     clients.matchAll({ type: 'window' }).then((clientList) => {

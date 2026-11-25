@@ -18,10 +18,12 @@ export const metadata: Metadata = {
     default: "eBook Reader Pro",
     template: "%s | eBook Reader Pro"
   },
-  description: "Comprehensive eBook Reader with AI features, TTS, cloud sync, and accessibility. Supports EPUB, PDF, MOBI, AZW3, FB2, DJVU and comic formats.",
+  description: "E-Book-Reader (EPUB, PDF, TXT, FB2, Comics) mit TTS, Statistiken und Lesezielen. KI-Funktionen erfordern die Server-Version.",
   keywords: ["eBook", "Reader", "EPUB", "PDF", "MOBI", "AZW3", "CBZ", "CBR", "Mobile", "Smartphone", "PWA"],
   authors: [{ name: "eBook Reader Pro" }],
-  manifest: "/manifest.json",
+  // Relativer Pfad: funktioniert unterhalb eines Repository-Pfads (GitHub Pages)
+  // genauso wie auf einem eigenen Domain-Root.
+  manifest: "manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
@@ -34,28 +36,28 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "eBook Reader Pro",
     title: "eBook Reader Pro - Mobile Reader App",
-    description: "Comprehensive eBook Reader with AI features, TTS, cloud sync, and accessibility",
-    images: ["/icon-512.png"],
+    description: "E-Book-Reader mit TTS, Statistiken und Lesezielen – KI-Funktionen erfordern die Server-Version",
+    images: ["icon-512.png"],
   },
   twitter: {
     card: "summary_large_image",
     title: "eBook Reader Pro",
-    description: "Comprehensive eBook Reader with AI features",
-    images: ["/icon-512.png"],
+    description: "E-Book-Reader mit TTS und Statistiken",
+    images: ["icon-512.png"],
   },
   icons: {
     icon: [
-      { url: "/icon-32.png", sizes: "32x32", type: "image/png" },
-      { url: "/icon-96.png", sizes: "96x96", type: "image/png" },
-      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "icon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "icon-96.png", sizes: "96x96", type: "image/png" },
+      { url: "icon-192.png", sizes: "192x192", type: "image/png" },
     ],
     apple: [
-      { url: "/icon-152.png", sizes: "152x152", type: "image/png" },
-      { url: "/icon-167.png", sizes: "167x167", type: "image/png" },
-      { url: "/icon-180.png", sizes: "180x180", type: "image/png" },
+      { url: "icon-152.png", sizes: "152x152", type: "image/png" },
+      { url: "icon-167.png", sizes: "167x167", type: "image/png" },
+      { url: "icon-180.png", sizes: "180x180", type: "image/png" },
     ],
     other: [
-      { rel: "mask-icon", url: "/icon-512.png", color: "#6366f1" },
+      { rel: "mask-icon", url: "icon-512.png", color: "#6366f1" },
     ],
   },
 };
@@ -79,7 +81,8 @@ export default function RootLayout({
   return (
     <html lang="de" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.json" />
+        {/* Relative Pfade: korrekt auch beim Hosting unter einem Sub-Pfad (z. B. GitHub Pages /repo/) */}
+        <link rel="manifest" href="manifest.json" />
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -87,10 +90,10 @@ export default function RootLayout({
         <meta name="application-name" content="eBook Reader Pro" />
         <meta name="msapplication-TileColor" content="#6366f1" />
         <meta name="msapplication-tap-highlight" content="no" />
-        <link rel="apple-touch-icon" href="/icon-180.png" />
-        <link rel="apple-touch-icon" sizes="152x152" href="/icon-152.png" />
-        <link rel="apple-touch-icon" sizes="167x167" href="/icon-167.png" />
-        <link rel="apple-touch-icon" sizes="180x180" href="/icon-180.png" />
+        <link rel="apple-touch-icon" href="icon-180.png" />
+        <link rel="apple-touch-icon" sizes="152x152" href="icon-152.png" />
+        <link rel="apple-touch-icon" sizes="167x167" href="icon-167.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="icon-180.png" />
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
@@ -102,7 +105,10 @@ export default function RootLayout({
             __html: `
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
-                  navigator.serviceWorker.register('/sw.js').then(
+                  // Relativer Pfad statt '/sw.js': korrekt auch unter
+                  // Sub-Pfad-Hosting (GitHub Pages).
+                  var swUrl = new URL('sw.js', document.baseURI).href;
+                  navigator.serviceWorker.register(swUrl).then(
                     function(registration) {
                       console.log('SW registered: ', registration.scope);
                       

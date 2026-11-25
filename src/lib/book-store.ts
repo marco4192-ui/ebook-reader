@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { putFile, getFile, deleteFile } from './file-storage';
+import { utf8ToBase64 } from './utils';
 
 export interface Bookmark {
   id: string;
@@ -200,16 +202,6 @@ export interface ReadingGoal {
   current: number;
   year: number;
   startDate: number;
-}
-
-// Smart shelf
-export interface SmartShelf {
-  id: string;
-  name: string;
-  rule: 'unread' | 'in_progress' | 'completed' | 'favorites' | 'recently_added' | 'long_books' | 'short_books' | 'genre';
-  genreFilter?: string;
-  color: string;
-  bookIds: string[];
 }
 
 // QR Sync data
@@ -769,43 +761,6 @@ interface BookStore {
   // Reading Hour Record actions (for heatmap)
   addReadingHourRecord: (hour: number, day: number, minutes: number) => void;
 
-  // Character actions
-  addCharacter: (character: Omit<Character, 'id'>) => string;
-  updateCharacter: (id: string, updates: Partial<Character>) => void;
-  removeCharacter: (id: string) => void;
-  getCharacters: (bookId: string) => Character[];
-  addCharacterRelationship: (characterId: string, targetId: string, type: Character['relationships'][0]['type']) => void;
-  
-  // Location actions
-  addLocation: (location: Omit<BookLocation, 'id' | 'createdAt' | 'mentions'>) => string;
-  updateLocation: (id: string, updates: Partial<BookLocation>) => void;
-  removeLocation: (id: string) => void;
-  getLocations: (bookId: string) => BookLocation[];
-  
-  // Timeline actions
-  addTimelineEvent: (event: Omit<TimelineEvent, 'id' | 'createdAt'>) => string;
-  updateTimelineEvent: (id: string, updates: Partial<TimelineEvent>) => void;
-  removeTimelineEvent: (id: string) => void;
-  getTimelineEvents: (bookId: string) => TimelineEvent[];
-  
-  // Custom Theme actions
-  addCustomTheme: (theme: Omit<CustomTheme, 'id' | 'createdAt'>) => string;
-  removeCustomTheme: (id: string) => void;
-  applyCustomTheme: (id: string) => void;
-  
-  // RSS actions
-  addRSSFeed: (feed: Omit<RSSFeed, 'id'>) => string;
-  removeRSSFeed: (id: string) => void;
-  updateRSSFeed: (id: string, updates: Partial<RSSFeed>) => void;
-  addRSSArticle: (article: Omit<RSSArticle, 'id'>) => string;
-  removeRSSArticle: (id: string) => void;
-  saveRSSArticleAsBook: (articleId: string) => void;
-  
-  // Web Article actions
-  addWebArticle: (article: Omit<WebArticle, 'id' | 'savedAt'>) => string;
-  removeWebArticle: (id: string) => void;
-  saveWebArticleAsBook: (id: string) => void;
-
   // Social features - Book Clubs
   addBookClub: (club: Omit<BookClub, 'id'>) => string;
   updateBookClub: (id: string, updates: Partial<BookClub>) => void;
@@ -1096,10 +1051,17 @@ export const useBookStore = create<BookStore>()(
           tags: [],
         };
         set((state) => ({ books: [...state.books, newBook] }));
+        // Datei-Inhalt (Base64/Data-URL) zusätzlich in IndexedDB sichern,
+        // damit localStorage klein bleibt (siehe partialize unten).
+        if (newBook.file) {
+          void putFile(id, newBook.file);
+        }
         return id;
       },
 
       removeBook: (id) => {
+        // Zugehörige Datei aus IndexedDB entfernen (idempotent).
+        void deleteFile(id);
         set((state) => ({
           books: state.books.filter((b) => b.id !== id),
           bookmarks: state.bookmarks.filter((b) => b.bookId !== id),
@@ -1690,7 +1652,7 @@ export const useBookStore = create<BookStore>()(
           const bookId = get().addBook({
             title: article.title,
             format: 'txt',
-            file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+            file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
             fileSize: article.content.length,
           });
           return bookId;
@@ -1718,7 +1680,7 @@ export const useBookStore = create<BookStore>()(
             title: article.title,
             author: article.author,
             format: 'txt',
-            file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+            file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
             fileSize: article.content.length,
           });
           return bookId;
@@ -2422,9 +2384,53 @@ export const useBookStore = create<BookStore>()(
 
       getSearchHistory: () => get().searchHistory,
     }),
-    { name: 'ebook-reader-storage-v3' }
+    {
+      name: 'ebook-reader-storage-v3',
+      // WICHTIG: Buchdateien (Base64-Data-URLs, teils mehrere MB pro Buch)
+      // werden NICHT in localStorage persistiert – dort gilt ein ~5-MB-Limit
+      // pro Origin. Die Inhalte liegen in IndexedDB (src/lib/file-storage.ts)
+      // und werden nach dem Rehydratisieren per initFileStorage() geladen.
+      partialize: (state) => ({
+        ...state,
+        books: state.books.map((b) => ({ ...b, file: '' })),
+        currentBook: state.currentBook ? { ...state.currentBook, file: '' } : null,
+      }),
+      onRehydrateStorage: () => {
+        // Nach dem Laden aus localStorage die Dateiinhalte aus IndexedDB
+        // zurück in den Speicher (In-Memory-State) hydratisieren.
+        void initFileStorage();
+      },
+    }
   )
 );
+
+/**
+ * Lädt die Buchdateien aus IndexedDB in den In-Memory-State des Stores.
+ * Wird nach dem persist-Rehydratisieren aufgerufen; localStorage bleibt dabei
+ * klein, große Dateiinhalte leben in IndexedDB bzw. im In-Memory-Fallback.
+ */
+export async function initFileStorage(): Promise<void> {
+  if (typeof window === 'undefined') return; // Kein IndexedDB/SSR-Sicherheit
+  const { books, currentBook } = useBookStore.getState();
+  const filesById = new Map<string, string>();
+  for (const book of books) {
+    if (!book.file) {
+      const file = await getFile(book.id);
+      if (file) filesById.set(book.id, file);
+    }
+  }
+  if (filesById.size === 0) return;
+  useBookStore.setState((state) => ({
+    books: state.books.map((b) => {
+      const file = filesById.get(b.id);
+      return file ? { ...b, file } : b;
+    }),
+    currentBook:
+      state.currentBook && filesById.has(state.currentBook.id)
+        ? { ...state.currentBook, file: filesById.get(state.currentBook.id)! }
+        : state.currentBook,
+  }));
+}
 
 export const calculateReadingTime = (wordCount: number, wordsPerMinute: number = 200): number => {
   return Math.ceil(wordCount / wordsPerMinute);
