@@ -19,10 +19,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
-    // Im bestehenden Monolithen (src/app/page.tsx) wird setState an vielen
-    // Stellen synchron in Effekten genutzt. Das umzubauen ist Teil der
-    // anstehenden Aufteilung in Module – bis dahin als Warnung statt Fehler.
-    "react-hooks/set-state-in-effect": "warn",
+    // Im Monolithen wurde setState an vielen Stellen synchron in Effekten
+    // genutzt. Nach der Modul-Aufteilung und dem Umbau aller betroffenen
+    // Stellen ist die Regel jetzt scharf: Neuer synchrones setState im Effekt
+    // lässt den Build fehlschlagen.
+    "react-hooks/set-state-in-effect": "error",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",

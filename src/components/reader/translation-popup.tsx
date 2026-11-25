@@ -22,28 +22,33 @@ export const languageOptions = [
 ];
 
 export const TranslationPopup = ({ text, position, onClose }: { text: string; position: { x: number; y: number }; onClose: () => void }) => {
-  const [translatedText, setTranslatedText] = useState('');
   const [targetLang, setTargetLang] = useState('de');
-  const [loading, setLoading] = useState(false);
-
-  const translateText = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, targetLanguage: targetLang })
-      });
-      const data = await response.json();
-      setTranslatedText(data.translatedText);
-    } catch {
-      setTranslatedText('Übersetzung fehlgeschlagen');
-    }
-    setLoading(false);
-  };
+  // Ergebnis der letzten abgeschlossenen Übersetzung; der Ladezustand wird
+  // daraus abgeleitet (statt setLoading synchron im Effekt zu setzen)
+  const [completed, setCompleted] = useState<{ key: string; value: string } | null>(null);
+  const requestKey = `${targetLang}:${text}`;
+  const loading = completed?.key !== requestKey;
+  const translatedText = completed?.key === requestKey ? completed.value : '';
 
   useEffect(() => {
-    translateText();
+    let cancelled = false;
+    const key = `${targetLang}:${text}`;
+    (async () => {
+      try {
+        const response = await fetch('/api/translate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, targetLanguage: targetLang })
+        });
+        const data = await response.json();
+        // erst NACH dem await – und nur, wenn nicht inzwischen eine neuere
+        // Anfrage gestartet wurde (verhindert veraltete Antworten)
+        if (!cancelled) setCompleted({ key, value: data.translatedText });
+      } catch {
+        if (!cancelled) setCompleted({ key, value: 'Übersetzung fehlgeschlagen' });
+      }
+    })();
+    return () => { cancelled = true; };
   }, [targetLang, text]);
 
   const languages = [
