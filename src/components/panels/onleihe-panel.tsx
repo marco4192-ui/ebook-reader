@@ -30,7 +30,17 @@ export const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChan
   const [selectedLibrary, setSelectedLibrary] = useState('');
   const [libraryUrl, setLibraryUrl] = useState('');
   const [activeTab, setActiveTab] = useState<'search' | 'borrowed' | 'wishlist'>('search');
-  const [borrowedBooks, setBorrowedBooks] = useState<{ title: string; author: string; dueDate: string; cover?: string; isbn?: string }[]>([]);
+  const [borrowedBooks, setBorrowedBooks] = useState<{ title: string; author: string; dueDate: string; cover?: string; isbn?: string }[]>(() => {
+    // Geliehene Bücher einmalig beim Anlegen lesen (statt synchron im Effekt);
+    // während SSR/prerender gibt es kein localStorage -> leer starten
+    if (typeof window === 'undefined') return [];
+    try {
+      const saved = localStorage.getItem('onleihe-borrowed');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [newBorrowTitle, setNewBorrowTitle] = useState('');
   const [newBorrowAuthor, setNewBorrowAuthor] = useState('');
   const [newBorrowDays, setNewBorrowDays] = useState(21);
@@ -49,12 +59,6 @@ export const OnleihePanel = ({ open, onOpenChange }: { open: boolean; onOpenChan
     { name: 'Hannover', url: 'https://www.onleihe.de/hannover' },
     { name: 'Bremen', url: 'https://www.onleihe.de/bremen' },
   ];
-
-  // Load borrowed books from localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem('onleihe-borrowed');
-    if (saved) setBorrowedBooks(JSON.parse(saved));
-  }, []);
 
   // Save borrowed books to localStorage
   useEffect(() => {
