@@ -761,6 +761,13 @@ interface BookStore {
   // Reading Hour Record actions (for heatmap)
   addReadingHourRecord: (hour: number, day: number, minutes: number) => void;
 
+  // Character actions
+  addCharacter: (character: Omit<Character, 'id'>) => string;
+  updateCharacter: (id: string, updates: Partial<Character>) => void;
+  removeCharacter: (id: string) => void;
+  getCharacters: (bookId: string) => Character[];
+  addCharacterRelationship: (characterId: string, targetId: string, type: Character['relationships'][0]['type']) => void;
+  
   // Social features - Book Clubs
   addBookClub: (club: Omit<BookClub, 'id'>) => string;
   updateBookClub: (id: string, updates: Partial<BookClub>) => void;
@@ -797,13 +804,6 @@ interface BookStore {
   removeSocialChallenge: (id: string) => void;
   shareChallenge: (id: string) => void;
   getSocialChallenges: () => SocialChallenge[];
-
-  // Character actions
-  addCharacter: (character: Omit<Character, 'id'>) => string;
-  updateCharacter: (id: string, updates: Partial<Character>) => void;
-  removeCharacter: (id: string) => void;
-  getCharacters: (bookId: string) => Character[];
-  addCharacterRelationship: (characterId: string, targetId: string, type: Character['relationships'][0]['type']) => void;
 
   // Location actions
   addLocation: (location: Omit<BookLocation, 'id' | 'createdAt' | 'mentions'>) => string;
@@ -1051,17 +1051,20 @@ export const useBookStore = create<BookStore>()(
           tags: [],
         };
         set((state) => ({ books: [...state.books, newBook] }));
-        // Datei-Inhalt (Base64/Data-URL) zusätzlich in IndexedDB sichern,
-        // damit localStorage klein bleibt (siehe partialize unten).
-        if (newBook.file) {
-          void putFile(id, newBook.file);
+        // Buchdatei (Data-URL) in IndexedDB speichern, damit das ~5-MB-Limit
+        // von localStorage nicht gesprengt wird. Bei Fehlern greift der
+        // In-Memory-Fallback von file-storage.ts.
+        if (book.file) {
+          putFile(id, book.file).catch(() => {
+            console.warn('IndexedDB nicht verfügbar – Datei nur im Speicher gehalten');
+          });
         }
         return id;
       },
 
       removeBook: (id) => {
-        // Zugehörige Datei aus IndexedDB entfernen (idempotent).
-        void deleteFile(id);
+        // Zugehörige Datei aus IndexedDB entfernen (Best-Effort)
+        deleteFile(id).catch(() => {});
         set((state) => ({
           books: state.books.filter((b) => b.id !== id),
           bookmarks: state.bookmarks.filter((b) => b.bookId !== id),
@@ -2384,53 +2387,25 @@ export const useBookStore = create<BookStore>()(
 
       getSearchHistory: () => get().searchHistory,
     }),
-    {
+    { 
       name: 'ebook-reader-storage-v3',
-      // WICHTIG: Buchdateien (Base64-Data-URLs, teils mehrere MB pro Buch)
-      // werden NICHT in localStorage persistiert – dort gilt ein ~5-MB-Limit
-      // pro Origin. Die Inhalte liegen in IndexedDB (src/lib/file-storage.ts)
-      // und werden nach dem Rehydratisieren per initFileStorage() geladen.
+      // Große Datenfelder (Buchdateien) NICHT in localStorage persistieren –
+      // sie leben in IndexedDB (siehe file-storage.ts) und werden beim
+      // erneuten Öffnen eines Buches über getFile() nachgeladen.
       partialize: (state) => ({
         ...state,
-        books: state.books.map((b) => ({ ...b, file: '' })),
-        currentBook: state.currentBook ? { ...state.currentBook, file: '' } : null,
+        books: state.books.map((b) => {
+          if (!b.file) return b;
+          const { file, ...rest } = b;
+          return rest as typeof b;
+        }),
+        currentBook: state.currentBook
+          ? (() => { const { file, ...rest } = state.currentBook!; return rest as typeof state.currentBook; })()
+          : null,
       }),
-      onRehydrateStorage: () => {
-        // Nach dem Laden aus localStorage die Dateiinhalte aus IndexedDB
-        // zurück in den Speicher (In-Memory-State) hydratisieren.
-        void initFileStorage();
-      },
     }
   )
 );
-
-/**
- * Lädt die Buchdateien aus IndexedDB in den In-Memory-State des Stores.
- * Wird nach dem persist-Rehydratisieren aufgerufen; localStorage bleibt dabei
- * klein, große Dateiinhalte leben in IndexedDB bzw. im In-Memory-Fallback.
- */
-export async function initFileStorage(): Promise<void> {
-  if (typeof window === 'undefined') return; // Kein IndexedDB/SSR-Sicherheit
-  const { books, currentBook } = useBookStore.getState();
-  const filesById = new Map<string, string>();
-  for (const book of books) {
-    if (!book.file) {
-      const file = await getFile(book.id);
-      if (file) filesById.set(book.id, file);
-    }
-  }
-  if (filesById.size === 0) return;
-  useBookStore.setState((state) => ({
-    books: state.books.map((b) => {
-      const file = filesById.get(b.id);
-      return file ? { ...b, file } : b;
-    }),
-    currentBook:
-      state.currentBook && filesById.has(state.currentBook.id)
-        ? { ...state.currentBook, file: filesById.get(state.currentBook.id)! }
-        : state.currentBook,
-  }));
-}
 
 export const calculateReadingTime = (wordCount: number, wordsPerMinute: number = 200): number => {
   return Math.ceil(wordCount / wordsPerMinute);
