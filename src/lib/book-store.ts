@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { putFile, getFile, deleteFile } from './file-storage';
+import { utf8ToBase64 } from './utils';
 
 export interface Bookmark {
   id: string;
@@ -200,16 +202,6 @@ export interface ReadingGoal {
   current: number;
   year: number;
   startDate: number;
-}
-
-// Smart shelf
-export interface SmartShelf {
-  id: string;
-  name: string;
-  rule: 'unread' | 'in_progress' | 'completed' | 'favorites' | 'recently_added' | 'long_books' | 'short_books' | 'genre';
-  genreFilter?: string;
-  color: string;
-  bookIds: string[];
 }
 
 // QR Sync data
@@ -776,36 +768,6 @@ interface BookStore {
   getCharacters: (bookId: string) => Character[];
   addCharacterRelationship: (characterId: string, targetId: string, type: Character['relationships'][0]['type']) => void;
   
-  // Location actions
-  addLocation: (location: Omit<BookLocation, 'id' | 'createdAt' | 'mentions'>) => string;
-  updateLocation: (id: string, updates: Partial<BookLocation>) => void;
-  removeLocation: (id: string) => void;
-  getLocations: (bookId: string) => BookLocation[];
-  
-  // Timeline actions
-  addTimelineEvent: (event: Omit<TimelineEvent, 'id' | 'createdAt'>) => string;
-  updateTimelineEvent: (id: string, updates: Partial<TimelineEvent>) => void;
-  removeTimelineEvent: (id: string) => void;
-  getTimelineEvents: (bookId: string) => TimelineEvent[];
-  
-  // Custom Theme actions
-  addCustomTheme: (theme: Omit<CustomTheme, 'id' | 'createdAt'>) => string;
-  removeCustomTheme: (id: string) => void;
-  applyCustomTheme: (id: string) => void;
-  
-  // RSS actions
-  addRSSFeed: (feed: Omit<RSSFeed, 'id'>) => string;
-  removeRSSFeed: (id: string) => void;
-  updateRSSFeed: (id: string, updates: Partial<RSSFeed>) => void;
-  addRSSArticle: (article: Omit<RSSArticle, 'id'>) => string;
-  removeRSSArticle: (id: string) => void;
-  saveRSSArticleAsBook: (articleId: string) => void;
-  
-  // Web Article actions
-  addWebArticle: (article: Omit<WebArticle, 'id' | 'savedAt'>) => string;
-  removeWebArticle: (id: string) => void;
-  saveWebArticleAsBook: (id: string) => void;
-
   // Social features - Book Clubs
   addBookClub: (club: Omit<BookClub, 'id'>) => string;
   updateBookClub: (id: string, updates: Partial<BookClub>) => void;
@@ -842,13 +804,6 @@ interface BookStore {
   removeSocialChallenge: (id: string) => void;
   shareChallenge: (id: string) => void;
   getSocialChallenges: () => SocialChallenge[];
-
-  // Character actions
-  addCharacter: (character: Omit<Character, 'id'>) => string;
-  updateCharacter: (id: string, updates: Partial<Character>) => void;
-  removeCharacter: (id: string) => void;
-  getCharacters: (bookId: string) => Character[];
-  addCharacterRelationship: (characterId: string, targetId: string, type: Character['relationships'][0]['type']) => void;
 
   // Location actions
   addLocation: (location: Omit<BookLocation, 'id' | 'createdAt' | 'mentions'>) => string;
@@ -1096,10 +1051,20 @@ export const useBookStore = create<BookStore>()(
           tags: [],
         };
         set((state) => ({ books: [...state.books, newBook] }));
+        // Buchdatei (Data-URL) in IndexedDB speichern, damit das ~5-MB-Limit
+        // von localStorage nicht gesprengt wird. Bei Fehlern greift der
+        // In-Memory-Fallback von file-storage.ts.
+        if (book.file) {
+          putFile(id, book.file).catch(() => {
+            console.warn('IndexedDB nicht verfügbar – Datei nur im Speicher gehalten');
+          });
+        }
         return id;
       },
 
       removeBook: (id) => {
+        // Zugehörige Datei aus IndexedDB entfernen (Best-Effort)
+        deleteFile(id).catch(() => {});
         set((state) => ({
           books: state.books.filter((b) => b.id !== id),
           bookmarks: state.bookmarks.filter((b) => b.bookId !== id),
@@ -1690,7 +1655,7 @@ export const useBookStore = create<BookStore>()(
           const bookId = get().addBook({
             title: article.title,
             format: 'txt',
-            file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+            file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
             fileSize: article.content.length,
           });
           return bookId;
@@ -1718,7 +1683,7 @@ export const useBookStore = create<BookStore>()(
             title: article.title,
             author: article.author,
             format: 'txt',
-            file: `data:text/plain;base64,${btoa(unescape(encodeURIComponent(article.content)))}`,
+            file: `data:text/plain;base64,${utf8ToBase64(article.content)}`,
             fileSize: article.content.length,
           });
           return bookId;
@@ -2422,7 +2387,23 @@ export const useBookStore = create<BookStore>()(
 
       getSearchHistory: () => get().searchHistory,
     }),
-    { name: 'ebook-reader-storage-v3' }
+    { 
+      name: 'ebook-reader-storage-v3',
+      // Große Datenfelder (Buchdateien) NICHT in localStorage persistieren –
+      // sie leben in IndexedDB (siehe file-storage.ts) und werden beim
+      // erneuten Öffnen eines Buches über getFile() nachgeladen.
+      partialize: (state) => ({
+        ...state,
+        books: state.books.map((b) => {
+          if (!b.file) return b;
+          const { file, ...rest } = b;
+          return rest as typeof b;
+        }),
+        currentBook: state.currentBook
+          ? (() => { const { file, ...rest } = state.currentBook!; return rest as typeof state.currentBook; })()
+          : null,
+      }),
+    }
   )
 );
 

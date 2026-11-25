@@ -1,4 +1,16 @@
-import type { CapacitorConfig } from '@capacitor/cli';
+import { KeyboardResize } from '@capacitor/keyboard';
+
+// Minimaler Typ statt Import aus '@capacitor/cli': Die Capacitor-CLI ist keine
+// Runtime-Abhängigkeit mehr (nur für native Builds on demand installiert).
+interface CapacitorConfig {
+  appId: string;
+  appName: string;
+  webDir: string;
+  server?: Record<string, unknown>;
+  plugins?: Record<string, Record<string, unknown>>;
+  android?: Record<string, unknown>;
+  ios?: Record<string, unknown>;
+}
 
 const config: CapacitorConfig = {
   appId: 'com.ebookreader.pro',
@@ -23,7 +35,7 @@ const config: CapacitorConfig = {
       backgroundColor: '#0a0a0a',
     },
     Keyboard: {
-      resize: 'body',
+      resize: KeyboardResize.Body,
       resizeOnFullScreen: true,
     },
     Haptics: {
@@ -31,7 +43,9 @@ const config: CapacitorConfig = {
     },
   },
   android: {
-    allowMixedContent: true,
+    // Aus Sicherheitsgründen deaktiviert: erlaubte gemischte Inhalte
+    // (HTTP-Ressourcen in HTTPS-Kontext) öffnen eine Angriffsfläche.
+    allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
     backgroundColor: '#0a0a0a',

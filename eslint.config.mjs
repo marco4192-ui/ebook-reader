@@ -19,6 +19,10 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
+    // Im bestehenden Monolithen (src/app/page.tsx) wird setState an vielen
+    // Stellen synchron in Effekten genutzt. Das umzubauen ist Teil der
+    // anstehenden Aufteilung in Module – bis dahin als Warnung statt Fehler.
+    "react-hooks/set-state-in-effect": "warn",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",
@@ -44,7 +48,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-useless-escape": "off",
   },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/**", ".zscripts/**", ".api-backup/**"]
 }];
 
 export default eslintConfig;
