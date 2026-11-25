@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { BookIcon, Tag, Link2, Copy, Share2, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,18 +13,15 @@ import { toast } from 'sonner';
 import { FutureFeatureNotice } from '@/components/future-feature-notice';
 
 export const ShareableLinkExport = ({ book, open, onOpenChange }: { book: Book; open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const [shareLink, setShareLink] = useState('');
   const [copied, setCopied] = useState(false);
   const [expiryHours, setExpiryHours] = useState(24);
-
-  useEffect(() => {
-    if (open && book) {
-      // Generate a mock shareable link
-      const shareId = Math.random().toString(36).substring(2, 10);
-      const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-      setShareLink(`${baseUrl}/share/${shareId}`);
-    }
-  }, [open, book, expiryHours]);
+  // Mock-Link einmalig beim Anlegen erzeugen (statt synchron im Effekt zu setzen).
+  // Die ID ist rein zufällig – sie ändert sich daher auch nicht mit dem Ablaufdatum.
+  const [shareLink] = useState(() => {
+    const shareId = Math.random().toString(36).substring(2, 10);
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
+    return `${baseUrl}/share/${shareId}`;
+  });
 
   const copyLink = () => {
     navigator.clipboard.writeText(shareLink);
