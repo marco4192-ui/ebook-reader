@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -23,15 +23,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Type check
+        run: npm run typecheck
+
       - name: Lint
         run: npm run lint
 
+      # Build 1/2: Server-Variante (standalone, mit API-Routen / KI-Funktionen)
       - name: Build (server mode with API routes)
         run: npm run build
 
-      - name: Upload build artifacts
+      - name: Upload server build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build
+          name: server-build
           path: .next/standalone/
+          retention-days: 7
+
+      # Build 2/2: Statische Variante (GitHub Pages/Capacitor, ohne API-Routen).
+      # Die App zeigt in dieser Variante einen ehrlichen Hinweis-Banner, dass
+      # Server-Funktionen (KI, RSS-Abruf) nicht verfügbar sind.
+      - name: Build (static export without API routes)
+        run: npm run build:static
+
+      - name: Upload static build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-build
+          path: out/
           retention-days: 7
