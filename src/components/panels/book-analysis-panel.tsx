@@ -36,30 +36,33 @@ export interface AnalysisData {
 
 export const BookAnalysisPanel = ({ text, bookTitle, author, open, onOpenChange }: { text: string; bookTitle: string; author?: string; open: boolean; onOpenChange: (open: boolean) => void }) => {
   const [analysis, setAnalysis] = useState<AnalysisData | null>(null);
-  const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'metrics' | 'themes' | 'mood'>('metrics');
-
-  const analyzeText = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: text.substring(0, 8000), bookTitle, author })
-      });
-      const data = await response.json();
-      setAnalysis(data.analysis);
-    } catch {
-      toast.error('Analyse fehlgeschlagen');
-    }
-    setLoading(false);
-  };
+  // Schlüssel der Anfrage, deren Ergebnis gerade angezeigt wird.
+  // Der Ladezustand wird daraus abgeleitet (statt per setState im Effekt zu spiegeln).
+  const [completedKey, setCompletedKey] = useState<string | null>(null);
+  const requestKey = `${open}|${bookTitle}|${text}`;
+  const loading = completedKey !== requestKey;
 
   useEffect(() => {
-    if (open && text) {
-      analyzeText();
-    }
-  }, [open, text]);
+    if (!open || !text) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text.substring(0, 8000), bookTitle, author })
+        });
+        const data = await response.json();
+        if (!cancelled) setAnalysis(data.analysis);
+      } catch {
+        if (!cancelled) toast.error('Analyse fehlgeschlagen');
+      }
+      // erst NACH dem await: setzt den Ladeindikator zurück
+      if (!cancelled) setCompletedKey(`${open}|${bookTitle}|${text}`);
+    })();
+    return () => { cancelled = true; };
+  }, [open, text, bookTitle, author]);
 
   const getDifficultyColor = (level: number) => {
     if (level <= 3) return 'text-green-500';

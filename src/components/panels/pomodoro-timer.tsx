@@ -24,44 +24,42 @@ export const PomodoroTimer = ({
   const workDuration = 25;
   const breakDuration = 5;
 
+  // Gehört die aktive Sitzung zu diesem Buch? Anzeige- und Laufzeitwerte
+  // werden daraus abgeleitet (statt timeRemaining/isRunning synchron im Effekt zurückzusetzen)
+  const hasActiveSession = !!currentPomodoro && currentPomodoro.bookId === bookId;
+  const isTicking = isRunning && hasActiveSession;
+  const displayTime = hasActiveSession ? timeRemaining : workDuration * 60;
+
   useEffect(() => {
-    if (!currentPomodoro || currentPomodoro.bookId !== bookId) {
-      setTimeRemaining(workDuration * 60);
-      setIsRunning(false);
-      return;
-    }
+    if (!isTicking || !currentPomodoro) return;
 
-    const duration = currentPomodoro.status === 'work' 
-      ? currentPomodoro.workDuration * 60 
-      : currentPomodoro.breakDuration * 60;
-
-    if (isRunning) {
-      const timer = setInterval(() => {
-        setTimeRemaining((prev) => {
-          if (prev <= 1) {
-            // Time's up
-            if (currentPomodoro.status === 'work') {
-              completePomodoro(currentPomodoro.id);
-              setTimeRemaining(currentPomodoro.breakDuration * 60);
-              onSessionComplete?.(currentPomodoro.completedPomodoros + 1);
-              toast.success('Pomodoro abgeschlossen! Zeit für eine Pause.');
-            } else {
-              updatePomodoroStatus(currentPomodoro.id, 'work');
-              setTimeRemaining(currentPomodoro.workDuration * 60);
-              toast.info('Pause vorbei! Weiterlesen.');
-            }
-            return 0;
+    const timer = setInterval(() => {
+      setTimeRemaining((prev) => {
+        if (prev <= 1) {
+          // Time's up
+          if (currentPomodoro.status === 'work') {
+            completePomodoro(currentPomodoro.id);
+            setTimeRemaining(currentPomodoro.breakDuration * 60);
+            onSessionComplete?.(currentPomodoro.completedPomodoros + 1);
+            toast.success('Pomodoro abgeschlossen! Zeit für eine Pause.');
+          } else {
+            updatePomodoroStatus(currentPomodoro.id, 'work');
+            setTimeRemaining(currentPomodoro.workDuration * 60);
+            toast.info('Pause vorbei! Weiterlesen.');
           }
-          return prev - 1;
-        });
-      }, 1000);
-      return () => clearInterval(timer);
-    }
-  }, [isRunning, currentPomodoro, bookId, completePomodoro, updatePomodoroStatus, onSessionComplete]);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTicking, currentPomodoro, bookId, completePomodoro, updatePomodoroStatus, onSessionComplete]);
 
   const startPomodoro = () => {
-    if (!currentPomodoro || currentPomodoro.bookId !== bookId) {
+    if (!hasActiveSession) {
       startPomodoroSession(bookId, workDuration, breakDuration);
+      // frische Sitzung -> Timer auf voller Arbeitszeit (Event-Handler, erlaubt)
+      setTimeRemaining(workDuration * 60);
     }
     setIsRunning(true);
   };
@@ -81,9 +79,9 @@ export const PomodoroTimer = ({
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = currentPomodoro
-    ? ((currentPomodoro.status === 'work' ? workDuration * 60 : breakDuration * 60) - timeRemaining) / 
-      (currentPomodoro.status === 'work' ? workDuration * 60 : breakDuration * 60) * 100
+  const progress = currentPomodoro && hasActiveSession
+    ? ((currentPomodoro.status === 'work' ? currentPomodoro.workDuration * 60 : currentPomodoro.breakDuration * 60) - displayTime) / 
+      (currentPomodoro.status === 'work' ? currentPomodoro.workDuration * 60 : currentPomodoro.breakDuration * 60) * 100
     : 0;
 
   return (
@@ -92,7 +90,7 @@ export const PomodoroTimer = ({
         <div className="flex items-center justify-center gap-2">
           <Clock className="w-4 h-4 text-primary" />
           <span className="text-sm font-medium">
-            {currentPomodoro?.status === 'break' ? 'Pause' : 'Pomodoro'}
+            {hasActiveSession && currentPomodoro?.status === 'break' ? 'Pause' : 'Pomodoro'}
           </span>
         </div>
         
@@ -116,17 +114,17 @@ export const PomodoroTimer = ({
               fill="none"
               strokeDasharray={226}
               strokeDashoffset={226 - (226 * progress) / 100}
-              className={currentPomodoro?.status === 'break' ? 'text-green-500' : 'text-primary'}
+              className={hasActiveSession && currentPomodoro?.status === 'break' ? 'text-green-500' : 'text-primary'}
               strokeLinecap="round"
             />
           </svg>
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-lg font-bold">{formatTime(timeRemaining)}</span>
+            <span className="text-lg font-bold">{formatTime(displayTime)}</span>
           </div>
         </div>
 
         <div className="flex justify-center gap-2">
-          {isRunning ? (
+          {isTicking ? (
             <Button size="sm" onClick={pausePomodoro}>
               <Pause className="w-4 h-4 mr-1" /> Pause
             </Button>
@@ -140,7 +138,7 @@ export const PomodoroTimer = ({
           </Button>
         </div>
 
-        {currentPomodoro && (
+        {hasActiveSession && currentPomodoro && (
           <p className="text-xs text-muted-foreground">
             {currentPomodoro.completedPomodoros} Pomodoros heute
           </p>
