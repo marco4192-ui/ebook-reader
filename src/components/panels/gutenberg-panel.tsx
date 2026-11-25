@@ -28,50 +28,79 @@ import { languageOptions } from '@/components/reader/translation-popup';
 
 export const GutenbergPanel = ({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) => {
   const [books, setBooks] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['de', 'en']);
+  // Suchbegriff, auf dem die angezeigte Liste basiert (das Suchfeld selbst
+  // wird erst bei Enter/Button übernommen – Tippen löst keinen Ladezustand aus)
+  const [activeSearch, setActiveSearch] = useState('');
+  // Schlüssel der tatsächlich geladenen Liste; der Ladezustand wird
+  // daraus abgeleitet (statt setLoading synchron im Effekt zu setzen)
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const { addBook } = useBookStore();
 
-  const fetchBooks = async (searchTerm: string = '', pageNum: number = 1, languages: string[] = ['de', 'en']) => {
-    setLoading(true);
+  const listKey = (searchTerm: string, pageNum: number, languages: string[]) =>
+    `${searchTerm}::${pageNum}::${languages.slice().sort().join(',')}`;
+  const loading = open && loadedKey !== listKey(activeSearch, page, selectedLanguages);
+
+  const fetchBooks = async (searchTerm: string, pageNum: number, languages: string[]) => {
     try {
       const params = new URLSearchParams({ page: pageNum.toString(), languages: languages.join(',') });
       if (searchTerm) params.set('search', searchTerm);
-      
       const response = await fetch(`/api/gutenberg?${params}`);
       const data = await response.json();
-      
       setBooks(data.books || []);
       setTotalCount(data.count || 0);
     } catch {
       toast.error('Fehler beim Laden der Bücher');
     }
-    setLoading(false);
+    // alles erst NACH dem await: kein synchrones setState im Effekt
+    setPage(pageNum);
+    setActiveSearch(searchTerm);
+    setLoadedKey(listKey(searchTerm, pageNum, languages));
   };
 
+  // Beim Öffnen die erste Seite (ungefiltert) laden – Fetch direkt im Effekt,
+  // alle setState-Aufrufe erst NACH dem await
   useEffect(() => {
-    if (open) fetchBooks('', 1, selectedLanguages);
+    if (!open) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ page: '1', languages: selectedLanguages.join(',') });
+        const response = await fetch(`/api/gutenberg?${params}`);
+        const data = await response.json();
+        if (!cancelled) {
+          setBooks(data.books || []);
+          setTotalCount(data.count || 0);
+          setPage(1);
+          setActiveSearch('');
+          setLoadedKey(listKey('', 1, selectedLanguages));
+        }
+      } catch {
+        if (!cancelled) toast.error('Fehler beim Laden der Bücher');
+      }
+    })();
+    return () => { cancelled = true; };
   }, [open]);
 
-  useEffect(() => {
-    setPage(1);
-    fetchBooks(search, 1, selectedLanguages);
-  }, [selectedLanguages]);
-
   const handleSearch = () => {
+    // Suchparameter im Event-Handler übernehmen -> Ladeindikator leuchtet sofort
     setPage(1);
-    fetchBooks(search, 1, selectedLanguages);
+    setActiveSearch(search);
+    void fetchBooks(search, 1, selectedLanguages);
   };
 
   const toggleLanguage = (code: string) => {
-    setSelectedLanguages(prev => 
-      prev.includes(code) 
-        ? prev.filter(c => c !== code)
-        : [...prev, code]
-    );
+    const nextLanguages = selectedLanguages.includes(code)
+      ? selectedLanguages.filter(c => c !== code)
+      : [...selectedLanguages, code];
+    setSelectedLanguages(nextLanguages);
+    // Sprachwechsel: zurück auf Seite 1 und neu laden – im Event-Handler statt im Effekt
+    setPage(1);
+    setActiveSearch(search);
+    void fetchBooks(search, 1, nextLanguages);
   };
 
   const downloadBook = async (book: any) => {

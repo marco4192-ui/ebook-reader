@@ -14,19 +14,14 @@ export interface ChatMessage {
 }
 
 export const AIChatPanel = ({ book, bookContent, open, onOpenChange }: { book: Book; bookContent: string; open: boolean; onOpenChange: (open: boolean) => void }) => {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([{
+    // Begrüßung wird einmalig beim Anlegen gesetzt (statt synchron im Effekt)
+    role: 'assistant',
+    content: `Hallo! Ich bin Ihr Leseassistent für "${book.title}". Stellen Sie mir Fragen zum Buch, den Charakteren, der Handlung oder lassen Sie sich den Kontext erklären.`
+  }]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (open && messages.length === 0) {
-      setMessages([{
-        role: 'assistant',
-        content: `Hallo! Ich bin Ihr Leseassistent für "${book.title}". Stellen Sie mir Fragen zum Buch, den Charakteren, der Handlung oder lassen Sie sich den Kontext erklären.`
-      }]);
-    }
-  }, [open, book.title, messages.length]);
 
   useEffect(() => {
     if (scrollRef.current) {

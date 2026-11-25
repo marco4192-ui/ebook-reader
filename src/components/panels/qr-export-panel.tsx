@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { QrCode, Copy, Smartphone, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -11,15 +11,12 @@ import { toast } from 'sonner';
 
 export const QRExportPanel = ({ book, open, onOpenChange }: { book: Book; open: boolean; onOpenChange: (open: boolean) => void }) => {
   const { generateQRData, qrSyncData } = useBookStore();
-  const [qrData, setQrData] = useState('');
   const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (open && book) {
-      const data = generateQRData(book.id);
-      setQrData(data);
-    }
-  }, [open, book, generateQRData]);
+  // QR-Daten werden direkt aus dem Store abgeleitet (statt per Effekt in State zu spiegeln)
+  const qrData = useMemo(
+    () => (open && book ? generateQRData(book.id) : ''),
+    [open, book, generateQRData]
+  );
 
   const copyToClipboard = () => {
     navigator.clipboard.writeText(qrData);

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Zap, Play, Pause, SkipForward, SkipBack } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
@@ -19,17 +19,23 @@ export const SpeedReadingPanel = ({
   onOpenChange: (open: boolean) => void;
 }) => {
   const { settings, updateSettings } = useBookStore();
-  const [words, setWords] = useState<string[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    // Split text into words and filter out empty strings
-    const wordList = text.split(/\s+/).filter(w => w.trim().length > 0);
-    setWords(wordList);
+  // Wörter direkt aus dem Text ableiten (statt per Effekt in State zu spiegeln)
+  const words = useMemo(
+    () => text.split(/\s+/).filter(w => w.trim().length > 0),
+    [text]
+  );
+
+  // Textwechsel: Leseindex zurücksetzen (React-Muster „State bei Prop-Wechsel anpassen“
+  // anstelle eines synchronen setState im Effekt)
+  const [prevText, setPrevText] = useState(text);
+  if (text !== prevText) {
+    setPrevText(text);
     setCurrentIndex(0);
-  }, [text]);
+  }
 
   useEffect(() => {
     if (isPlaying && words.length > 0) {
